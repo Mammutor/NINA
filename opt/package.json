@@ -19,7 +19,8 @@
         "prettier": "pnpm prettier:common -w",
         "prettier:common": "prettier src support opt/docs --ignore-path opt/.eslintignore --cache",
         "test": "vitest",
-        "prepare": "husky && pnpm check-duplicates"
+        "prepare": "husky && pnpm check-duplicates",
+        "deploy": "gh-pages -d dist/www"
     },
     "pnpm": {
         "//": [
@@ -70,8 +71,8 @@
     "devDependencies": {
         "@open-pioneer/build-package-cli": "catalog:",
         "@open-pioneer/build-support": "catalog:",
-        "@open-pioneer/vite-plugin-pioneer": "catalog:",
         "@open-pioneer/check-pnpm-duplicates": "catalog:",
+        "@open-pioneer/vite-plugin-pioneer": "catalog:",
         "@testing-library/dom": "catalog:",
         "@testing-library/jest-dom": "catalog:",
         "@testing-library/react": "catalog:",
@@ -93,6 +94,7 @@
         "eslint-plugin-react-hooks": "catalog:",
         "eslint-plugin-unused-imports": "catalog:",
         "fast-glob": "catalog:",
+        "gh-pages": "^6.2.0",
         "handlebars": "catalog:",
         "happy-dom": "catalog:",
         "husky": "catalog:",

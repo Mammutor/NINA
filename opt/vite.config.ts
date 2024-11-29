@@ -45,15 +45,10 @@ export default defineConfig(({ mode }) => {
                 rootSite: true,
 
                 // Additional directories to include as html (must contain index.html files)
-                sites: [
-                    "sites/empty",
-
-                    // Include sample sites in the build
-                    ...sampleSites
-                ],
+                sites: [],
 
                 // Apps to distribute as .js files for embedded use cases
-                apps: []
+                apps: ["ol-app"]
             }),
             react()
             //eslint()
