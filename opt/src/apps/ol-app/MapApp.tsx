@@ -67,8 +67,8 @@ export function MapApp() {
             const vectorSource = new VectorSource({
                 url: './data/plannedAreas.geojson', // Pfad zu deinem GeoJSON
                 format: new GeoJSON({
-                    dataProjection: 'EPSG:4326', // Projektion der GeoJSON-Daten
-                    featureProjection: 'EPSG:3857' // Zielprojektion (Kartensystem)
+                    dataProjection: 'EPSG:3857',
+                    featureProjection: 'EPSG:3857'
                 })
             });
             

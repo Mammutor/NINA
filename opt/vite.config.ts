@@ -32,6 +32,9 @@ export default defineConfig(({ mode }) => {
         // Generates relative urls in html etc.
         base: "./",
 
+         // WICHTIG: Definiere das Verzeichnis für statische Dateien explizit
+        publicDir: resolve(__dirname, "public"),
+
         // Vite's build output is written to dist/www
         build: {
             outDir: resolve(__dirname, "dist/www"),
