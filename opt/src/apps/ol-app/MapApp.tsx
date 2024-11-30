@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2023 Open Pioneer project (https://github.com/open-pioneer)
 // SPDX-License-Identifier: Apache-2.0
 import { Box, Button, Divider, Flex, FormControl, FormLabel, Text, Input, Slider, SliderTrack, SliderFilledTrack, SliderThumb} from "@open-pioneer/chakra-integration";
-import { MapAnchor, MapContainer } from "@open-pioneer/map";
+import { MapAnchor, MapContainer, useMapModel } from "@open-pioneer/map";
 import { ScaleBar } from "@open-pioneer/scale-bar";
 import { InitialExtent, ZoomIn, ZoomOut } from "@open-pioneer/map-navigation";
 import { useIntl } from "open-pioneer:react-hooks";
@@ -13,13 +13,22 @@ import { Geolocation } from "@open-pioneer/geolocation";
 import { Notifier } from "@open-pioneer/notifier";
 import { OverviewMap } from "@open-pioneer/overview-map";
 import { MAP_ID } from "./services";
-import React, { useId, useMemo, useState } from "react";
+import React, {useEffect, useId, useMemo, useState} from "react";
 import TileLayer from "ol/layer/Tile";
 import { Measurement } from "@open-pioneer/measurement";
 import OSM from "ol/source/OSM";
 import { PiRulerLight } from "react-icons/pi";
 import { BasemapSwitcher } from "@open-pioneer/basemap-switcher";
-
+import { mapLogic } from "./mapLogic";
+import VectorSource from "ol/source/Vector";
+import VectorLayer from "ol/layer/Vector.js";
+import GeoJSON from 'ol/format/GeoJSON';
+import Style from 'ol/style/Style';
+import Fill from 'ol/style/Fill';
+import Stroke from 'ol/style/Stroke';
+import CircleStyle from 'ol/style/Circle';
+import { transform } from 'ol/proj';
+import { isEmpty } from 'ol/extent';
 export function MapApp() {
     const intl = useIntl();
     const measurementTitleId = useId();
@@ -44,14 +53,54 @@ export function MapApp() {
     function toggleMeasurement() {
         setMeasurementIsActive(!measurementIsActive);
     }
+    
+    const { map } = useMapModel(MAP_ID);
 
-    const overviewMapLayer = useMemo(
-        () =>
-            new TileLayer({
-                source: new OSM()
-            }),
-        []
-    );
+    useEffect(() => {
+
+        if (map?.layers) {
+            console.log(map)
+            // Setze maximalen Zoom
+            map.olMap.getView().setMaxZoom(19);
+
+            /// GeoJSON-Datei aus Ordner laden
+            const vectorSource = new VectorSource({
+                url: './data/plannedAreas.geojson', // Pfad zu deinem GeoJSON
+                format: new GeoJSON({
+                    dataProjection: 'EPSG:4326', // Projektion der GeoJSON-Daten
+                    featureProjection: 'EPSG:3857' // Zielprojektion (Kartensystem)
+                })
+            });
+            
+            console.log(vectorSource.getExtent())
+
+
+
+            // Layer für GeoJSON
+            const geojsonLayer = new VectorLayer({
+                source: vectorSource,
+                style: new Style({
+                    fill: new Fill({
+                        color: 'rgba(0, 123, 255, 0.5)'
+                    }),
+                    stroke: new Stroke({
+                        color: '#007bff',
+                        width: 2
+                    }),
+                    image: new CircleStyle({
+                        radius: 6,
+                        fill: new Fill({
+                            color: '#ffcc33'
+                        })
+                    })
+                })
+            });
+
+            // GeoJSON-Layer zur Karte hinzufügen
+            map.olMap.addLayer(geojsonLayer);
+            
+        } else return;
+    }, [map]);
 
     return (
         <Flex height="100%" direction="column" overflow="hidden" width="100%">
