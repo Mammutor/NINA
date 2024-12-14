@@ -123,7 +123,7 @@ export function MapApp() {
 
             // Add Street data layer
             const vectorSource2 = new VectorSource({
-                url: './data/filteredStreetDataWithAttributes.geojson', 
+                url: './data/updated_graph_with_single_address.geojson', 
                 format: new GeoJSON({
                     dataProjection: 'EPSG:4326',
                     featureProjection: 'EPSG:3857'
