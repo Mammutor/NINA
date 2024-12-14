@@ -46,6 +46,7 @@ export function MapApp() {
     const resetInputs = () => {
         setStartAddress('');
         setDestinationAddress('');
+        setSliderValue(1);
     };
 
     const changeArea = () => {
@@ -288,7 +289,7 @@ export function MapApp() {
                             </Text>
                         </Flex>
                         <Slider
-                            defaultValue={1}
+                            value={sliderValue}
                             min={0}
                             max={2}
                             step={1}
