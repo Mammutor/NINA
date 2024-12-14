@@ -29,6 +29,7 @@ import Stroke from 'ol/style/Stroke';
 import CircleStyle from 'ol/style/Circle';
 import { transform } from 'ol/proj';
 import { isEmpty } from 'ol/extent';
+import { Image } from "@chakra-ui/react";
 export function MapApp() {
 
     const intl = useIntl();
@@ -257,7 +258,7 @@ export function MapApp() {
                 {/* Routing Box */}
                 <Box maxWidth="400px">
                     <Text fontSize="lg" fontWeight="bold" mb={2}  textAlign="center">
-                        Enter Route Information
+                        Enter Start And Destination Address
                     </Text>
                     <Input
                         id="startAddressInput"
@@ -281,11 +282,21 @@ export function MapApp() {
                             Route Preference 
                         </Text>
                         <Flex justifyContent="space-between" alignItems="center" mb={2}>
-                            <Text fontSize="2xl" role="img" aria-label="rocket">
-                                🪖
+                            <Text fontSize="2xl" role="img" aria-label="helmet-icons">
+                                <Image
+                                    src="./data/Helmet.png"
+                                    alt="Safety Icon"
+                                    boxSize="25px" // Größe des Bildes anpassen
+                                    display="inline" // Inline-Anzeige, um den Textstil beizubehalten
+                                />
                             </Text>
-                            <Text fontSize="2xl" role="img" aria-label="turtle">
-                                🚀
+                            <Text fontSize="2xl" role="img" aria-label="rocket-icons">
+                                <Image
+                                    src="./data/Rocket.png"
+                                    alt="Fast Icon"
+                                    boxSize="25px" // Größe des Bildes anpassen
+                                    display="inline" // Inline-Anzeige, um den Textstil beizubehalten
+                                />
                             </Text>
                         </Flex>
                         <Slider
@@ -323,10 +334,10 @@ export function MapApp() {
                     </Button>
                 </Flex>
 
-                {/* Route Information */}
+                {/* Route Rating */}
                 <Box maxWidth="400px">
                     <Text fontSize="lg" fontWeight="bold" mb={2}  textAlign="center">
-                        Route Information
+                        Route Rating
                     </Text>
                     <Input
                         id="safetyRating"
