@@ -41,7 +41,7 @@ export function MapApp() {
     const [safetyRating, setSafetyRating] = useState<string>('');
     const [timeEfficiencyRating, setTimeEfficiencyRating] = useState<string>('');
 
-    const sliderLabels = ["Fastest", "Balanced", "Safest"];
+    const sliderLabels = ["Safest", "Balanced", "Fastest"];
 
     const resetInputs = () => {
         setStartAddress('');
@@ -259,8 +259,16 @@ export function MapApp() {
                 <Flex ml={8} direction="row" alignItems="flex-start" maxWidth="400px">
                     <Box mr={4}>
                         <Text fontSize="lg" fontWeight="bold" mb={2}>
-                            Route Preference
+                            Route Preference 
                         </Text>
+                        <Flex justifyContent="space-between" alignItems="center" mb={2}>
+                            <Text fontSize="2xl" role="img" aria-label="rocket">
+                                🐢
+                            </Text>
+                            <Text fontSize="2xl" role="img" aria-label="turtle">
+                                🚀
+                            </Text>
+                        </Flex>
                         <Slider
                             defaultValue={1}
                             min={0}
