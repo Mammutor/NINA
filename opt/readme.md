@@ -31,3 +31,8 @@ Additional in-depth information can be found in the [Documentation](docs/README.
 ## License
 
 Apache-2.0 (see `LICENSE` file)
+
+## Pictures
+Helmet: https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.flaticon.com%2Fde%2Fkostenloses-icon%2Ffahrradhelm_4841913&psig=AOvVaw01vtGHtND_XGgvLRHjdBag&ust=1734274168591000&source=images&cd=vfe&opi=89978449&ved=0CBEQjRxqFwoTCNCb-O_Ap4oDFQAAAAAdAAAAABAE
+
+Rocket: https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.flaticon.com%2Fde%2Fkostenloses-icon%2Frakete_231138&psig=AOvVaw2btGMPZuUMFOzGzoTjsC6p&ust=1734274228701000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCJiolYzBp4oDFQAAAAAdAAAAABAE
