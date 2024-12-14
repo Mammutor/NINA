@@ -53,6 +53,10 @@ export function MapApp() {
     };
     function toggleMeasurement() {
         setMeasurementIsActive(!measurementIsActive);
+    };
+
+    const calculateRoute = () => {
+        alert("Start Route Clicked");
     }
     
     const { map } = useMapModel(MAP_ID);
@@ -243,18 +247,6 @@ export function MapApp() {
                     />
                 </Box>
 
-                <Flex direction="column" gap={2}>
-                    <Text fontSize="lg" fontWeight="bold" mb={2}  textAlign="center">
-                        Options
-                    </Text>
-                    <Button colorScheme="blue" onClick={resetInputs}>
-                        Reset Input
-                    </Button>
-                    <Button colorScheme="green" onClick={changeArea}>
-                        Change Area
-                    </Button>
-                </Flex>
-
                 {/* Slider and Buttons */}
                 <Flex ml={8} direction="row" alignItems="flex-start" maxWidth="400px">
                     <Box mr={4}>
@@ -287,7 +279,24 @@ export function MapApp() {
                     </Box>
                 </Flex>
 
+                {/* Start */}
+                <Flex direction="column">
+                    <Text fontSize="lg" fontWeight="bold" mb={5}  textAlign="center">
+                        Start
+                    </Text>
+                    <Button
+                        colorScheme="green"
+                        mb={4}
+                        onClick={calculateRoute}
+                        borderRadius="full"
+                        w="75px"
+                        h="75px"
+                    >
+                        Go!
+                    </Button>
+                </Flex>
 
+                {/* Route Information */}
                 <Box maxWidth="400px">
                     <Text fontSize="lg" fontWeight="bold" mb={2}  textAlign="center">
                         Route Information
@@ -307,6 +316,19 @@ export function MapApp() {
                         maxWidth="1000px"
                     />
                 </Box>
+
+                {/* Options */}
+                <Flex direction="column">
+                    <Text fontSize="lg" fontWeight="bold" mb={2}  textAlign="center">
+                        Options
+                    </Text>
+                    <Button colorScheme="red" mb={4} onClick={resetInputs}>
+                        Reset Input
+                    </Button>
+                    <Button colorScheme="blue" mb={4} onClick={changeArea}>
+                        Change Area
+                    </Button>
+                </Flex>
             </Flex>
 
             <Box
