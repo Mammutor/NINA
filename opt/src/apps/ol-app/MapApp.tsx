@@ -282,7 +282,7 @@ export function MapApp() {
                         </Text>
                         <Flex justifyContent="space-between" alignItems="center" mb={2}>
                             <Text fontSize="2xl" role="img" aria-label="rocket">
-                                🐢
+                                🪖
                             </Text>
                             <Text fontSize="2xl" role="img" aria-label="turtle">
                                 🚀
