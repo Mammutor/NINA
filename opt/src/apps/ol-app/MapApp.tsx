@@ -30,6 +30,7 @@ import CircleStyle from 'ol/style/Circle';
 import { transform } from 'ol/proj';
 import { isEmpty } from 'ol/extent';
 export function MapApp() {
+
     const intl = useIntl();
     const measurementTitleId = useId();
 
@@ -76,7 +77,7 @@ export function MapApp() {
                 source: vectorSource,
                 style: new Style({
                     fill: new Fill({
-                        color: 'rgba(0, 255, 17, 0.5)'
+                        color: 'rgba(55, 67, 61, 0.8)'
                     }),
                     image: new CircleStyle({
                         radius: 6,
@@ -91,7 +92,7 @@ export function MapApp() {
             map.olMap.addLayer(geojsonLayer);
 
             const vectorSource2 = new VectorSource({
-                url: './data/filteredStreetDataLessAttributes.geojson', 
+                url: './data/filteredStreetDataWithAttributes.geojson', 
                 format: new GeoJSON({
                     dataProjection: 'EPSG:4326',
                     featureProjection: 'EPSG:3857'
@@ -105,21 +106,106 @@ export function MapApp() {
 
             map.olMap.addLayer(layer);
 
-        
-    
+            function styleByCategory(feature) {
+                var category = feature.get('category_number');
+                var color;
+              
+                switch (category) {
+                  case 4:
+                    color = 'blue';
+                    break;
+                  case 3:
+                    color = 'rgba(34, 192, 13, 0.8)';
+                    break;
+                  case 2:
+                    color = 'yellow';
+                    break;
+                  case 1:
+                    color = 'red';
+                    break;
+                  default:
+                    color = 'gray'; 
+                }
+              
+                return new Style({
+                  stroke: new Stroke({
+                    color: color,
+                    width: 2
+                  }),
+                  fill: new Fill({
+                    color: color
+                  })
+                });
+            }
+
             vectorSource2.once('change', function() {
                 if (vectorSource2.getState() === 'ready') {
                   var features = vectorSource2.getFeatures();
                   console.log(features);
               
+                  var relevantProps = [
+                    'bicycle',
+                    'cycleway',
+                    'cycleway_left',
+                    'cycleway_right',
+                    'bicycle_road',
+                    'cycleway_right_bicycle',
+                    'cycleway_left_bicycle'
+                  ];
+              
+                  // Kategorien
+                  var withoutCycleHighwayGroup = [];
+                  var withoutCycleOther = [];
+                  var cyclePropsYesDesignated = [];
+                  var cyclePropsOther = [];
+              
                   features.forEach(function(feature) {
                     var properties = feature.getProperties();
                     console.log(properties);
+              
+                    // Prüfen, ob eine relevante Rad-Property vorhanden ist
+                    var hasCycleProp = relevantProps.some(function(prop) {
+                      return properties[prop] != null && properties[prop] !== '';
+                    });
+              
+                    if (!hasCycleProp) {
+                      // Keine Radinfrastruktur, weiter unterteilen nach highway-Werten
+                      var highway = properties['highway'];
+                      if (highway === 'residential' || 
+                          highway === 'living_street' || 
+                          highway === 'bridleway' ||
+                          highway === 'track') {
+                        feature.set('category_number', 2);
+                        withoutCycleHighwayGroup.push(feature);
+                      } else {
+                        feature.set('category_number', 1);
+                        withoutCycleOther.push(feature);
+                      }
+                    } else {
+                      // Hat Radinfrastruktur, nun verfeinern:
+                      var bicycleValue = properties['bicycle'];
+                      var bicycleRoadValue = properties['bicycle_road'];
+              
+                      var isYesOrDesignated = (bicycleValue === 'yes' || bicycleValue === 'designated') ||
+                                              (bicycleRoadValue === 'yes' || bicycleRoadValue === 'designated');
+              
+                      if (isYesOrDesignated) {
+                        feature.set('category_number', 4);
+                        cyclePropsYesDesignated.push(feature);
+                      } else {
+                        feature.set('category_number', 3);
+                        cyclePropsOther.push(feature);
+                      }
+                    }
+
+                    layer.setStyle(styleByCategory);
+                  });
+                  // hier einmal alle properties ausgeben
+                  features.forEach(function(feature) {
+                    console.log(feature.getProperties());
                   });
                 }
               });
-            
-            
             
         } else return;
     }, [map]);
@@ -203,13 +289,13 @@ export function MapApp() {
                         placeholder="Safety Rating not set yet" 
                         value={safetyRating}
                         mb={4}
-                        readonly
+                        readOnly={true}
                     />
                     <Input
                         id="timeEfficiencyRating"
                         placeholder="Time Efficiency Rating not set yet"
                         value={timeEfficiencyRating}
-                        readonly={true}
+                        readOnly={true}
                         maxWidth="1000px"
                     />
                 </Box>
