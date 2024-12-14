@@ -67,8 +67,8 @@ export function MapApp() {
             // Setze maximalen Zoom
             map.olMap.getView().setMaxZoom(19);
 
-            /// GeoJSON-Datei aus Ordner laden
-            const vectorSource = new VectorSource({
+            // Add planned Areas Layer
+            const plannedAreasVectorSource = new VectorSource({
                 url: './data/plannedAreas.geojson', // Pfad zu deinem GeoJSON
                 format: new GeoJSON({
                     dataProjection: 'EPSG:3857',
@@ -77,8 +77,8 @@ export function MapApp() {
             });
 
             // Layer für GeoJSON
-            const geojsonLayer = new VectorLayer({
-                source: vectorSource,
+            const plannedAreasLayer = new VectorLayer({
+                source: plannedAreasVectorSource,
                 style: new Style({
                     fill: new Fill({
                         color: 'rgba(55, 67, 61, 0.8)'
@@ -93,8 +93,34 @@ export function MapApp() {
             });
 
             // GeoJSON-Layer zur Karte hinzufügen
-            map.olMap.addLayer(geojsonLayer);
+            map.olMap.addLayer(plannedAreasLayer);
 
+            // Add address Layer
+            const addressVectorSource = new VectorSource({
+                url: './data/matching_hsnr_features_with_address.geojson', // Pfad zu deinem GeoJSON
+                format: new GeoJSON({
+                    dataProjection: 'EPSG:3857',
+                    featureProjection: 'EPSG:3857'
+                })
+            });
+
+            // Layer für GeoJSON
+            const addressLayer = new VectorLayer({
+                source: addressVectorSource,
+                style: new Style({
+                    image: new CircleStyle({
+                        radius: 1,
+                        fill: new Fill({
+                            color: 'rgba(255, 255, 255, 0.6)'
+                        })
+                    })
+                })
+            });
+
+            // GeoJSON-Layer zur Karte hinzufügen
+            map.olMap.addLayer(addressLayer);
+
+            // Add Street data layer
             const vectorSource2 = new VectorSource({
                 url: './data/filteredStreetDataWithAttributes.geojson', 
                 format: new GeoJSON({
@@ -103,12 +129,12 @@ export function MapApp() {
                 })
             });
 
-            const layer = new VectorLayer({
+            const streetDataLayer = new VectorLayer({
                 source: vectorSource2
             });
             
 
-            map.olMap.addLayer(layer);
+            map.olMap.addLayer(streetDataLayer);
 
             function styleByCategory(feature) {
                 var category = feature.get('category_number');
@@ -202,7 +228,7 @@ export function MapApp() {
                       }
                     }
 
-                    layer.setStyle(styleByCategory);
+                    streetDataLayer.setStyle(styleByCategory);
                   });
                   // hier einmal alle properties ausgeben
                   features.forEach(function(feature) {
