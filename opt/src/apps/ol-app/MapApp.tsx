@@ -59,7 +59,6 @@ export function MapApp() {
     useEffect(() => {
 
         if (map?.layers) {
-            console.log(map)
             // Setze maximalen Zoom
             map.olMap.getView().setMaxZoom(19);
 
@@ -71,21 +70,13 @@ export function MapApp() {
                     featureProjection: 'EPSG:3857'
                 })
             });
-            
-            console.log(vectorSource.getExtent())
-
-
 
             // Layer für GeoJSON
             const geojsonLayer = new VectorLayer({
                 source: vectorSource,
                 style: new Style({
                     fill: new Fill({
-                        color: 'rgba(0, 123, 255, 0.5)'
-                    }),
-                    stroke: new Stroke({
-                        color: '#007bff',
-                        width: 2
+                        color: 'rgba(0, 255, 17, 0.5)'
                     }),
                     image: new CircleStyle({
                         radius: 6,
@@ -98,6 +89,37 @@ export function MapApp() {
 
             // GeoJSON-Layer zur Karte hinzufügen
             map.olMap.addLayer(geojsonLayer);
+
+            const vectorSource2 = new VectorSource({
+                url: './data/filteredStreetDataLessAttributes.geojson', 
+                format: new GeoJSON({
+                    dataProjection: 'EPSG:4326',
+                    featureProjection: 'EPSG:3857'
+                })
+            });
+
+            const layer = new VectorLayer({
+                source: vectorSource2
+            });
+            
+
+            map.olMap.addLayer(layer);
+
+        
+    
+            vectorSource2.once('change', function() {
+                if (vectorSource2.getState() === 'ready') {
+                  var features = vectorSource2.getFeatures();
+                  console.log(features);
+              
+                  features.forEach(function(feature) {
+                    var properties = feature.getProperties();
+                    console.log(properties);
+                  });
+                }
+              });
+            
+            
             
         } else return;
     }, [map]);
