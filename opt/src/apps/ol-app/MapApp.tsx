@@ -258,7 +258,7 @@ export function MapApp() {
                 {/* Routing Box */}
                 <Box maxWidth="400px">
                     <Text fontSize="lg" fontWeight="bold" mb={2}  textAlign="center">
-                        Enter Start And Destination Adress
+                        Enter Start And Destination Address
                     </Text>
                     <Input
                         id="startAddressInput"
