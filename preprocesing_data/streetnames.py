@@ -5,6 +5,7 @@ import geopandas as gpd
 csv_file_path = 'C:/Users/tobia/Desktop/SaBiNE/preprocesing_data/data/unique_names.csv'
 geojson_names_file_path = 'C:/Users/tobia/Desktop/SaBiNE/preprocesing_data/data/strassen_opendata.geojson'
 geojson_hsnr_file_path = 'C:/Users/tobia/Desktop/SaBiNE/preprocesing_data/data/hsnr_opendata.geojson'
+geojson_planned_areas_path = "C:/Users/tobia/Desktop/SaBiNE/opt/public/data/plannedAreas.geojson"
 
 # 1. Straßennamen aus CSV laden
 street_names = []
@@ -41,9 +42,25 @@ matching_hsnr_features_with_names['ADDRESS'] = (
 # 6. Entfernen der Spalte `STR_SCHL`
 matching_hsnr_features_with_names = matching_hsnr_features_with_names.drop(columns=['STR_SCHL'])
 
-# 7. Speichern der Ergebnisse
-print(f"Anzahl übereinstimmender Hausnummern-Features mit Straßennamen: {len(matching_hsnr_features_with_names)}")
-matching_hsnr_features_with_names.to_file(
+# 7. Laden der geplanten Bereiche (Polygone)
+planned_areas = gpd.read_file(geojson_planned_areas_path)
+
+# 8. Transformieren von `matching_hsnr_features_with_names` nach EPSG:3857
+matching_hsnr_features_with_names = matching_hsnr_features_with_names.to_crs(epsg=3857)
+
+# 9. Spatial Filter: Nur Features, deren Geometrie innerhalb der geplanten Polygone liegt
+filtered_features = matching_hsnr_features_with_names[
+    matching_hsnr_features_with_names.geometry.apply(
+        lambda x: any(x.within(area) for area in planned_areas.geometry)
+    )
+]
+
+# 10. Transformieren des Ergebnisses nach EPSG:3857 (falls notwendig)
+filtered_features = filtered_features.to_crs(epsg=3857)
+
+# 11. Speichern der Ergebnisse
+print(f"Anzahl übereinstimmender Hausnummern-Features nach spatial filter: {len(filtered_features)}")
+filtered_features.to_file(
     'C:/Users/tobia/Desktop/SaBiNE/opt/public/data/matching_hsnr_features_with_address.geojson',
     driver='GeoJSON'
 )
