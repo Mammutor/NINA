@@ -47,7 +47,7 @@ export function MapApp() {
     const resetInputs = () => {
         setStartAddress('');
         setDestinationAddress('');
-        setSliderValue(1);
+        setSliderValue(0);
     };
 
     const changeArea = () => {
@@ -64,6 +64,12 @@ export function MapApp() {
     const { map } = useMapModel(MAP_ID);
 
     useEffect(() => {
+        // Set Defaultvalue Scalebar to Safe
+        const initializeDefaults = () => {
+            setSliderValue(0); // Setzt den Slider auf den mittleren Wert
+        };
+
+        initializeDefaults();
 
         if (map?.layers) {
             // Setze maximalen Zoom
