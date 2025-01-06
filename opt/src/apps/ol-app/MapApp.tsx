@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2023 Open Pioneer project (https://github.com/open-pioneer)
 // SPDX-License-Identifier: Apache-2.0
-import { Box, Button, Divider, Flex, FormControl, FormLabel, Text, Input, Slider, SliderTrack, SliderFilledTrack, SliderThumb} from "@open-pioneer/chakra-integration";
+import { Box, Button, Divider, Flex, FormControl, FormLabel, Text, Input, Slider, SliderTrack, SliderFilledTrack, SliderThumb } from "@open-pioneer/chakra-integration";
 import { MapAnchor, MapContainer, useMapModel } from "@open-pioneer/map";
 import { ScaleBar } from "@open-pioneer/scale-bar";
 import { InitialExtent, ZoomIn, ZoomOut } from "@open-pioneer/map-navigation";
@@ -13,7 +13,7 @@ import { Geolocation } from "@open-pioneer/geolocation";
 import { Notifier } from "@open-pioneer/notifier";
 import { OverviewMap } from "@open-pioneer/overview-map";
 import { MAP_ID } from "./services";
-import React, {useEffect, useId, useMemo, useState} from "react";
+import React, { useEffect, useId, useMemo, useState } from "react";
 import TileLayer from "ol/layer/Tile";
 import { Measurement } from "@open-pioneer/measurement";
 import OSM from "ol/source/OSM";
@@ -30,6 +30,9 @@ import CircleStyle from 'ol/style/Circle';
 import { transform } from 'ol/proj';
 import { isEmpty } from 'ol/extent';
 import { Image } from "@chakra-ui/react";
+import Select from "react-select";
+
+
 export function MapApp() {
 
     const intl = useIntl();
@@ -38,9 +41,13 @@ export function MapApp() {
     const [measurementIsActive, setMeasurementIsActive] = useState<boolean>(false);
     const [startAddress, setStartAddress] = useState<string>('');
     const [destinationAddress, setDestinationAddress] = useState<string>('');
+    const [addressSuggestions, setAddressSuggestions] = useState([]);
+    const [filteredDestinations, setFilteredDestinations] = useState([]);
+    const [addressToAreaMapping, setAddressToAreaMapping] = useState({});
     const [sliderValue, setSliderValue] = useState<number>(1);
     const [safetyRating, setSafetyRating] = useState<string>('');
     const [timeEfficiencyRating, setTimeEfficiencyRating] = useState<string>('');
+
 
     const sliderLabels = ["Safest", "Balanced", "Fastest"];
 
@@ -60,7 +67,7 @@ export function MapApp() {
     const calculateRoute = () => {
         alert("Start Route Clicked");
     }
-    
+
     const { map } = useMapModel(MAP_ID);
 
     useEffect(() => {
@@ -130,7 +137,7 @@ export function MapApp() {
 
             // Add Street data layer
             const vectorSource2 = new VectorSource({
-                url: './data/updated_graph_with_single_address.geojson', 
+                url: './data/updated_graph_with_single_address.geojson',
                 format: new GeoJSON({
                     dataProjection: 'EPSG:4326',
                     featureProjection: 'EPSG:3857'
@@ -140,113 +147,146 @@ export function MapApp() {
             const streetDataLayer = new VectorLayer({
                 source: vectorSource2
             });
-            
+
 
             map.olMap.addLayer(streetDataLayer);
 
             function styleByCategory(feature) {
                 var category = feature.get('category_number');
                 var color;
-              
+
                 switch (category) {
-                  case 4:
-                    color = 'blue';
-                    break;
-                  case 3:
-                    color = 'rgba(34, 192, 13, 0.8)';
-                    break;
-                  case 2:
-                    color = 'yellow';
-                    break;
-                  case 1:
-                    color = 'red';
-                    break;
-                  default:
-                    color = 'gray'; 
+                    case 4:
+                        color = 'blue';
+                        break;
+                    case 3:
+                        color = 'rgba(34, 192, 13, 0.8)';
+                        break;
+                    case 2:
+                        color = 'yellow';
+                        break;
+                    case 1:
+                        color = 'red';
+                        break;
+                    default:
+                        color = 'gray';
                 }
-              
+
                 return new Style({
-                  stroke: new Stroke({
-                    color: color,
-                    width: 2
-                  }),
-                  fill: new Fill({
-                    color: color
-                  })
+                    stroke: new Stroke({
+                        color: color,
+                        width: 2
+                    }),
+                    fill: new Fill({
+                        color: color
+                    })
                 });
             }
 
-            vectorSource2.once('change', function() {
+            vectorSource2.once('change', function () {
                 if (vectorSource2.getState() === 'ready') {
-                  var features = vectorSource2.getFeatures();
-                  console.log(features);
-              
-                  var relevantProps = [
-                    'bicycle',
-                    'cycleway',
-                    'cycleway_left',
-                    'cycleway_right',
-                    'bicycle_road',
-                    'cycleway_right_bicycle',
-                    'cycleway_left_bicycle'
-                  ];
-              
-                  // Kategorien
-                  var withoutCycleHighwayGroup = [];
-                  var withoutCycleOther = [];
-                  var cyclePropsYesDesignated = [];
-                  var cyclePropsOther = [];
-              
-                  features.forEach(function(feature) {
-                    var properties = feature.getProperties();
-                    console.log(properties);
-              
-                    // Prüfen, ob eine relevante Rad-Property vorhanden ist
-                    var hasCycleProp = relevantProps.some(function(prop) {
-                      return properties[prop] != null && properties[prop] !== '';
-                    });
-              
-                    if (!hasCycleProp) {
-                      // Keine Radinfrastruktur, weiter unterteilen nach highway-Werten
-                      var highway = properties['highway'];
-                      if (highway === 'residential' || 
-                          highway === 'living_street' || 
-                          highway === 'bridleway' ||
-                          highway === 'track') {
-                        feature.set('category_number', 2);
-                        withoutCycleHighwayGroup.push(feature);
-                      } else {
-                        feature.set('category_number', 1);
-                        withoutCycleOther.push(feature);
-                      }
-                    } else {
-                      // Hat Radinfrastruktur, nun verfeinern:
-                      var bicycleValue = properties['bicycle'];
-                      var bicycleRoadValue = properties['bicycle_road'];
-              
-                      var isYesOrDesignated = (bicycleValue === 'yes' || bicycleValue === 'designated') ||
-                                              (bicycleRoadValue === 'yes' || bicycleRoadValue === 'designated');
-              
-                      if (isYesOrDesignated) {
-                        feature.set('category_number', 4);
-                        cyclePropsYesDesignated.push(feature);
-                      } else {
-                        feature.set('category_number', 3);
-                        cyclePropsOther.push(feature);
-                      }
-                    }
+                    var features = vectorSource2.getFeatures();
+                    console.log(features);
 
-                    streetDataLayer.setStyle(styleByCategory);
-                  });
-                  // hier einmal alle properties ausgeben
-                  features.forEach(function(feature) {
-                    console.log(feature.getProperties());
-                  });
+                    var relevantProps = [
+                        'bicycle',
+                        'cycleway',
+                        'cycleway_left',
+                        'cycleway_right',
+                        'bicycle_road',
+                        'cycleway_right_bicycle',
+                        'cycleway_left_bicycle'
+                    ];
+
+                    // Kategorien
+                    var withoutCycleHighwayGroup = [];
+                    var withoutCycleOther = [];
+                    var cyclePropsYesDesignated = [];
+                    var cyclePropsOther = [];
+
+                    features.forEach(function (feature) {
+                        var properties = feature.getProperties();
+                        console.log(properties);
+
+                        // Prüfen, ob eine relevante Rad-Property vorhanden ist
+                        var hasCycleProp = relevantProps.some(function (prop) {
+                            return properties[prop] != null && properties[prop] !== '';
+                        });
+
+                        if (!hasCycleProp) {
+                            // Keine Radinfrastruktur, weiter unterteilen nach highway-Werten
+                            var highway = properties['highway'];
+                            if (highway === 'residential' ||
+                                highway === 'living_street' ||
+                                highway === 'bridleway' ||
+                                highway === 'track') {
+                                feature.set('category_number', 2);
+                                withoutCycleHighwayGroup.push(feature);
+                            } else {
+                                feature.set('category_number', 1);
+                                withoutCycleOther.push(feature);
+                            }
+                        } else {
+                            // Hat Radinfrastruktur, nun verfeinern:
+                            var bicycleValue = properties['bicycle'];
+                            var bicycleRoadValue = properties['bicycle_road'];
+
+                            var isYesOrDesignated = (bicycleValue === 'yes' || bicycleValue === 'designated') ||
+                                (bicycleRoadValue === 'yes' || bicycleRoadValue === 'designated');
+
+                            if (isYesOrDesignated) {
+                                feature.set('category_number', 4);
+                                cyclePropsYesDesignated.push(feature);
+                            } else {
+                                feature.set('category_number', 3);
+                                cyclePropsOther.push(feature);
+                            }
+                        }
+
+                        streetDataLayer.setStyle(styleByCategory);
+                    });
+                    // hier einmal alle properties ausgeben
+                    features.forEach(function (feature) {
+                        console.log(feature.getProperties());
+                    });
                 }
-              });
-            
+            });
+
         } else return;
     }, [map]);
+
+    useEffect(() => {
+        // Fetch addresses and their planned_area_id from the CSV file
+        fetch("./data/Matched_Addresses_in_Planned_Areas.csv")
+            .then((response) => response.text())
+            .then((data) => {
+                const rows = data.split("\n").slice(1); // Skip header row
+                const mapping = {};
+                const addresses = rows.map((row) => {
+                    const [address, plannedAreaId] = row.split(",");
+                    if (address && plannedAreaId) {
+                        mapping[address] = plannedAreaId.trim();
+                        return address;
+                    }
+                    return null;
+                }).filter((address) => address);
+                setAddressToAreaMapping(mapping);
+                setAddressSuggestions(addresses);
+            });
+    }, []);
+
+    useEffect(() => {
+        // Filter destination addresses based on the area of the selected start address
+        if (startAddress) {
+            const selectedAreaId = addressToAreaMapping[startAddress];
+            const filtered = Object.keys(addressToAreaMapping).filter(
+                (address) => addressToAreaMapping[address] === selectedAreaId
+            );
+            setFilteredDestinations(filtered);
+        } else {
+            setFilteredDestinations([]);
+        }
+    }, [startAddress, addressToAreaMapping]);
 
     return (
         <Flex height="100%" direction="column" overflow="hidden" width="100%">
@@ -261,23 +301,22 @@ export function MapApp() {
                 justifyContent="space-between"
                 alignItems="flex-start"
             >
-                {/* Routing Box */}
-                <Box maxWidth="400px">
-                    <Text fontSize="lg" fontWeight="bold" mb={2}  textAlign="center">
-                        Enter Start And Destination Address
+                <Box marginBottom="20px">
+                    <Text fontSize="lg" fontWeight="bold" marginBottom="10px">
+                        Enter Start and Destination Address
                     </Text>
-                    <Input
-                        id="startAddressInput"
+                    <Select
+                        options={addressSuggestions.map((address) => ({ value: address, label: address }))}
+                        onChange={(selectedOption) => setStartAddress(selectedOption ? selectedOption.value : "")}
                         placeholder="Please enter your starting address"
-                        value={startAddress}
-                        onChange={(e) => setStartAddress(e.target.value)}
-                        mb={4}
+                        isClearable
                     />
-                    <Input
-                        id="destinationAddressInput"
+                    <Select
+                        options={filteredDestinations.map((address) => ({ value: address, label: address }))}
+                        onChange={(selectedOption) => setDestinationAddress(selectedOption ? selectedOption.value : "")}
                         placeholder="Please enter your destination address"
-                        value={destinationAddress}
-                        onChange={(e) => setDestinationAddress(e.target.value)}
+                        isClearable
+                        isDisabled={!startAddress}
                     />
                 </Box>
 
@@ -285,7 +324,7 @@ export function MapApp() {
                 <Flex ml={8} direction="row" alignItems="flex-start" maxWidth="400px">
                     <Box mr={4}>
                         <Text fontSize="lg" fontWeight="bold" mb={2}>
-                            Route Preference 
+                            Route Preference
                         </Text>
                         <Flex justifyContent="space-between" alignItems="center" mb={2}>
                             <Text fontSize="2xl" role="img" aria-label="helmet-icons">
@@ -325,7 +364,7 @@ export function MapApp() {
 
                 {/* Start */}
                 <Flex direction="column">
-                    <Text fontSize="lg" fontWeight="bold" mb={5}  textAlign="center">
+                    <Text fontSize="lg" fontWeight="bold" mb={5} textAlign="center">
                         Start
                     </Text>
                     <Button
@@ -342,12 +381,12 @@ export function MapApp() {
 
                 {/* Route Rating */}
                 <Box maxWidth="400px">
-                    <Text fontSize="lg" fontWeight="bold" mb={2}  textAlign="center">
+                    <Text fontSize="lg" fontWeight="bold" mb={2} textAlign="center">
                         Route Rating
                     </Text>
                     <Input
                         id="safetyRating"
-                        placeholder="Safety Rating not set yet" 
+                        placeholder="Safety Rating not set yet"
                         value={safetyRating}
                         mb={4}
                         readOnly={true}
@@ -363,7 +402,7 @@ export function MapApp() {
 
                 {/* Options */}
                 <Flex direction="column">
-                    <Text fontSize="lg" fontWeight="bold" mb={2}  textAlign="center">
+                    <Text fontSize="lg" fontWeight="bold" mb={2} textAlign="center">
                         Options
                     </Text>
                     <Button colorScheme="red" mb={4} onClick={resetInputs}>
@@ -388,7 +427,7 @@ export function MapApp() {
                 <MapContainer
                     mapId={MAP_ID}
                     role="main"
-                    aria-label={intl.formatMessage({id: "ariaLabel.map"})}
+                    aria-label={intl.formatMessage({ id: "ariaLabel.map" })}
                 >
                     <MapAnchor position="top-left" horizontalGap={5} verticalGap={5}>
                         {measurementIsActive && (
@@ -399,7 +438,7 @@ export function MapApp() {
                                 padding={2}
                                 boxShadow="lg"
                                 role="top-left"
-                                aria-label={intl.formatMessage({id: "ariaLabel.topLeft"})}
+                                aria-label={intl.formatMessage({ id: "ariaLabel.topLeft" })}
                             >
                                 <Box role="dialog" aria-labelledby={measurementTitleId}>
                                     <TitledSection
@@ -409,11 +448,11 @@ export function MapApp() {
                                                 size="md"
                                                 mb={2}
                                             >
-                                                {intl.formatMessage({id: "measurementTitle"})}
+                                                {intl.formatMessage({ id: "measurementTitle" })}
                                             </SectionHeading>
                                         }
                                     >
-                                        <Measurement mapId={MAP_ID}/>
+                                        <Measurement mapId={MAP_ID} />
                                     </TitledSection>
                                 </Box>
                             </Box>
@@ -422,37 +461,37 @@ export function MapApp() {
                     <MapAnchor position="bottom-right" horizontalGap={10} verticalGap={30}>
                         <Flex
                             role="bottom-right"
-                            aria-label={intl.formatMessage({id: "ariaLabel.bottomRight"})}
+                            aria-label={intl.formatMessage({ id: "ariaLabel.bottomRight" })}
                             direction="column"
                             gap={1}
                             padding={1}
                         >
                             <ToolButton
-                                label={intl.formatMessage({id: "measurementTitle"})}
-                                icon={<PiRulerLight/>}
+                                label={intl.formatMessage({ id: "measurementTitle" })}
+                                icon={<PiRulerLight />}
                                 isActive={measurementIsActive}
                                 onClick={toggleMeasurement}
                             />
-                            <Geolocation mapId={MAP_ID}/>
-                            <InitialExtent mapId={MAP_ID}/>
-                            <ZoomIn mapId={MAP_ID}/>
-                            <ZoomOut mapId={MAP_ID}/>
+                            <Geolocation mapId={MAP_ID} />
+                            <InitialExtent mapId={MAP_ID} />
+                            <ZoomIn mapId={MAP_ID} />
+                            <ZoomOut mapId={MAP_ID} />
                         </Flex>
                     </MapAnchor>
                 </MapContainer>
             </Box>
             <Flex
                 role="region"
-                aria-label={intl.formatMessage({id: "ariaLabel.footer"})}
+                aria-label={intl.formatMessage({ id: "ariaLabel.footer" })}
                 gap={3}
                 alignItems="center"
                 justifyContent="center"
             >
-                <CoordinateViewer mapId={MAP_ID} precision={2}/>
-                <ScaleBar mapId={MAP_ID}/>
-                <ScaleViewer mapId={MAP_ID}/>
+                <CoordinateViewer mapId={MAP_ID} precision={2} />
+                <ScaleBar mapId={MAP_ID} />
+                <ScaleViewer mapId={MAP_ID} />
             </Flex>
-            
+
         </Flex>
     );
 }
