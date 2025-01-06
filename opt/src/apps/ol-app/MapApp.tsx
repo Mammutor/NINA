@@ -52,14 +52,11 @@ export function MapApp() {
     const sliderLabels = ["Safest", "Balanced", "Fastest"];
 
     const resetInputs = () => {
-        setStartAddress('');
-        setDestinationAddress('');
+        setStartAddress("");
+        setDestinationAddress("");
         setSliderValue(0);
     };
 
-    const changeArea = () => {
-        alert("Button Clicked");
-    };
     function toggleMeasurement() {
         setMeasurementIsActive(!measurementIsActive);
     };
@@ -186,7 +183,6 @@ export function MapApp() {
             vectorSource2.once('change', function () {
                 if (vectorSource2.getState() === 'ready') {
                     var features = vectorSource2.getFeatures();
-                    console.log(features);
 
                     var relevantProps = [
                         'bicycle',
@@ -206,7 +202,6 @@ export function MapApp() {
 
                     features.forEach(function (feature) {
                         var properties = feature.getProperties();
-                        console.log(properties);
 
                         // Prüfen, ob eine relevante Rad-Property vorhanden ist
                         var hasCycleProp = relevantProps.some(function (prop) {
@@ -245,10 +240,6 @@ export function MapApp() {
 
                         streetDataLayer.setStyle(styleByCategory);
                     });
-                    // hier einmal alle properties ausgeben
-                    features.forEach(function (feature) {
-                        console.log(feature.getProperties());
-                    });
                 }
             });
 
@@ -257,22 +248,9 @@ export function MapApp() {
 
     useEffect(() => {
         // Fetch addresses and their planned_area_id from the CSV file
-        fetch("./data/Matched_Addresses_in_Planned_Areas.csv")
-            .then((response) => response.text())
-            .then((data) => {
-                const rows = data.split("\n").slice(1); // Skip header row
-                const mapping = {};
-                const addresses = rows.map((row) => {
-                    const [address, plannedAreaId] = row.split(",");
-                    if (address && plannedAreaId) {
-                        mapping[address] = plannedAreaId.trim();
-                        return address;
-                    }
-                    return null;
-                }).filter((address) => address);
-                setAddressToAreaMapping(mapping);
-                setAddressSuggestions(addresses);
-            });
+        fillAdressInput();
+        
+        
     }, []);
 
     useEffect(() => {
@@ -288,6 +266,26 @@ export function MapApp() {
         }
     }, [startAddress, addressToAreaMapping]);
 
+    function fillAdressInput(){
+        console.log("gedrückt")
+        fetch("./data/Matched_Addresses_in_Planned_Areas.csv")
+            .then((response) => response.text())
+            .then((data) => {
+                const rows = data.split("\n").slice(1); 
+                const mapping = {};
+                const addresses = rows.map((row) => {
+                    const [address, plannedAreaId] = row.split(",");
+                    if (address && plannedAreaId) {
+                        mapping[address] = plannedAreaId.trim();
+                        return address;
+                    }
+                    return null;
+                }).filter((address) => address);
+                setAddressToAreaMapping(mapping);
+                setAddressSuggestions(addresses);
+            });
+    }
+
     return (
         <Flex height="100%" direction="column" overflow="hidden" width="100%">
             <Flex
@@ -301,25 +299,42 @@ export function MapApp() {
                 justifyContent="space-between"
                 alignItems="flex-start"
             >
-                <Box marginBottom="20px" maxWidth="400px">
+                <Box marginBottom="20px">
                     <Text fontSize="lg" fontWeight="bold" marginBottom="10px">
                         Enter Start and Destination Address
                     </Text>
                     <Select
-                        options={addressSuggestions.map((address) => ({ value: address, label: address }))}
-                        onChange={(selectedOption) => setStartAddress(selectedOption ? selectedOption.value : "")}
+                        // Bei Single-Select: value erwartet ein Objekt oder null
+                        // Wir wandeln state (string) in {value, label} um
+                        value={
+                            startAddress
+                                ? { value: startAddress, label: startAddress }
+                                : null
+                        }
+                        options={addressSuggestions.map((address) => ({
+                            value: address,
+                            label: address,
+                        }))}
+                        onChange={(selectedOption) =>
+                            setStartAddress(selectedOption ? selectedOption.value : "")
+                        }
                         placeholder="Please enter your starting address"
                         isClearable
-                        styles={{
-                            container: (provided) => ({
-                                ...provided,
-                                marginBottom: "16px", // Abstand zwischen den Select-Feldern
-                            }),
-                        }}
                     />
                     <Select
-                        options={filteredDestinations.map((address) => ({ value: address, label: address }))}
-                        onChange={(selectedOption) => setDestinationAddress(selectedOption ? selectedOption.value : "")}
+                        // Auch hier: Wir brauchen ein Objekt oder null
+                        value={
+                            destinationAddress
+                                ? { value: destinationAddress, label: destinationAddress }
+                                : null
+                        }
+                        options={filteredDestinations.map((address) => ({
+                            value: address,
+                            label: address,
+                        }))}
+                        onChange={(selectedOption) =>
+                            setDestinationAddress(selectedOption ? selectedOption.value : "")
+                        }
                         placeholder="Please enter your destination address"
                         isClearable
                         isDisabled={!startAddress}
@@ -337,16 +352,16 @@ export function MapApp() {
                                 <Image
                                     src="./data/Helmet.png"
                                     alt="Safety Icon"
-                                    boxSize="25px" // Größe des Bildes anpassen
-                                    display="inline" // Inline-Anzeige, um den Textstil beizubehalten
+                                    boxSize="25px"
+                                    display="inline" 
                                 />
                             </Text>
                             <Text fontSize="2xl" role="img" aria-label="rocket-icons">
                                 <Image
                                     src="./data/Rocket.png"
                                     alt="Fast Icon"
-                                    boxSize="25px" // Größe des Bildes anpassen
-                                    display="inline" // Inline-Anzeige, um den Textstil beizubehalten
+                                    boxSize="25px"
+                                    display="inline"
                                 />
                             </Text>
                         </Flex>
@@ -413,9 +428,6 @@ export function MapApp() {
                     </Text>
                     <Button colorScheme="red" mb={4} onClick={resetInputs}>
                         Reset Input
-                    </Button>
-                    <Button colorScheme="blue" mb={4} onClick={changeArea}>
-                        Change Area
                     </Button>
                 </Flex>
             </Flex>
