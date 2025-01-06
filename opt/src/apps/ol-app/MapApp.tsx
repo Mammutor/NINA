@@ -301,7 +301,7 @@ export function MapApp() {
                 justifyContent="space-between"
                 alignItems="flex-start"
             >
-                <Box marginBottom="20px">
+                <Box marginBottom="20px" maxWidth="400px">
                     <Text fontSize="lg" fontWeight="bold" marginBottom="10px">
                         Enter Start and Destination Address
                     </Text>
@@ -310,6 +310,12 @@ export function MapApp() {
                         onChange={(selectedOption) => setStartAddress(selectedOption ? selectedOption.value : "")}
                         placeholder="Please enter your starting address"
                         isClearable
+                        styles={{
+                            container: (provided) => ({
+                                ...provided,
+                                marginBottom: "16px", // Abstand zwischen den Select-Feldern
+                            }),
+                        }}
                     />
                     <Select
                         options={filteredDestinations.map((address) => ({ value: address, label: address }))}
