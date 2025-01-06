@@ -61,9 +61,6 @@ export function MapApp() {
         setMeasurementIsActive(!measurementIsActive);
     };
 
-    const calculateRoute = () => {
-        alert("Start Route Clicked");
-    }
 
     const { map } = useMapModel(MAP_ID);
 
@@ -286,6 +283,11 @@ export function MapApp() {
             });
     }
 
+
+    function calculateRoute(){
+        console.log(startAddress)
+    }
+
     return (
         <Flex height="100%" direction="column" overflow="hidden" width="100%">
             <Flex
@@ -320,6 +322,12 @@ export function MapApp() {
                         }
                         placeholder="Please enter your starting address"
                         isClearable
+                        styles={{
+                            container: (provided) => ({
+                                ...provided,
+                                marginBottom: "16px", // Abstand zwischen den Select-Feldern
+                            }),
+                        }}
                     />
                     <Select
                         // Auch hier: Wir brauchen ein Objekt oder null
@@ -395,6 +403,7 @@ export function MapApp() {
                         borderRadius="full"
                         w="75px"
                         h="75px"
+                        isDisabled={!startAddress || !destinationAddress}
                     >
                         Go!
                     </Button>
