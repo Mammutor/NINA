@@ -131,7 +131,7 @@ export function MapApp() {
 
             // Add Street data layer
             const vectorSource2 = new VectorSource({
-                url: './data/updated_graph_with_single_address.geojson',
+                url: './data/combined_features.geojson',
                 format: new GeoJSON({
                     dataProjection: 'EPSG:4326',
                     featureProjection: 'EPSG:3857'
@@ -264,7 +264,6 @@ export function MapApp() {
     }, [startAddress, addressToAreaMapping]);
 
     function fillAdressInput(){
-        console.log("gedrückt")
         fetch("./data/Matched_Addresses_in_Planned_Areas.csv")
             .then((response) => response.text())
             .then((data) => {
@@ -284,9 +283,172 @@ export function MapApp() {
     }
 
 
-    function calculateRoute(){
-        console.log(startAddress)
+function calculateRoute(graph, startId, endId){
+        // Pareto-Front: Map<Knoten, [ { costVector: number[], predecessor: string } ] >
+  const paretoFront = new Map();
+
+  // Initialisiere Startknoten mit Vektor [0,0,...,0]
+  paretoFront.set(startId, [
+    {
+      costVector: new Array(categoryStrings.length).fill(0),
+      predecessor: null
     }
+  ]);
+
+  // Warteschlange für Knoten mit offenen Zuständen
+  const queue = [];
+  queue.push({ node: startId, costVector: paretoFront.get(startId)[0].costVector });
+
+  // Hauptschleife
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const { node: currentNode, costVector: currentCostVec } = current;
+
+    // Betrachte alle Nachbarn von currentNode
+    const edges = graph.get(currentNode) || [];
+    edges.forEach((edge) => {
+      const nextNode = edge.node;
+
+      // Berechne neuen Kostenvektor für nextNode
+      const edgeCostVec = getUnweightedCostVector(edge.costData.length, edge.costData.category);
+      const newCostVec = vectorAdd(currentCostVec, edgeCostVec);
+
+      // Falls keine Pareto-Front für nextNode existiert, initialisiere sie
+      if (!paretoFront.has(nextNode)) {
+        paretoFront.set(nextNode, []);
+      }
+      const currentPareto = paretoFront.get(nextNode);
+
+      // Prüfe Pareto-Dominanz
+      let dominatedByExisting = false;
+      let dominatingIndices = [];
+
+      for (let i = 0; i < currentPareto.length; i++) {
+        const existingVec = currentPareto[i].costVector;
+        if (dominates(existingVec, newCostVec)) {
+          dominatedByExisting = true;
+          break;
+        }
+        if (dominates(newCostVec, existingVec)) {
+          dominatingIndices.push(i);
+        }
+      }
+
+      if (!dominatedByExisting) {
+        // Lösche alte Vektoren, die von newCostVec dominiert werden
+        for (let i = dominatingIndices.length - 1; i >= 0; i--) {
+          currentPareto.splice(dominatingIndices[i], 1);
+        }
+
+        // Füge newCostVec zur Pareto-Front hinzu
+        currentPareto.push({
+          costVector: newCostVec,
+          predecessor: currentNode
+        });
+
+        // Nimm nextNode in die Queue auf
+        queue.push({ node: nextNode, costVector: newCostVec });
+      }
+    });
+  }
+
+  // Rückgabe: Die Pareto-Front aller Knoten
+  //mit paretoFront.get(endId) kriegt man das ergebnis für den zielknoten
+  return paretoFront;
+
+}
+
+
+// Hilfsfunktion für die Routenberechnung: Für jede Kante wird der Kostenvektor berechnet 
+// ! ACHTUNG ! Bisher ist hier noch keine Gewichtung vorhanden.
+function getUnweightedCostVector(length, category) {
+
+    const costVector = new Array(4).fill(0);
+    costVector[category-1] = length;
+    
+    return costVector;
+}
+
+
+// Hilfsfunktion die determiniert, ob ein Kostenvektor einen anderen dominiert.
+function dominates(vecA, vecB) {
+    let strictlyBetter = false;
+    
+    for (let i = 0; i < vecA.length; i++) {
+        if (vecA[i] > vecB[i]) {
+        return false; // Nicht besser in allen Komponenten
+        }
+        if (vecA[i] < vecB[i]) {
+        strictlyBetter = true; // Besser in mindestens einer Komponente
+        }
+    }
+    
+    return strictlyBetter;
+    }
+
+    function vectorAdd(vecA, vecB) {
+    return vecA.map((val, idx) => val + vecB[idx]);
+    }
+
+
+    function buildGraphFromGeoJSON(geojson) {
+        const graph = new Map();
+      
+        geojson.features.forEach((feature) => {
+          const geometry = feature.geometry;
+          const properties = feature.properties;
+      
+          if (geometry.type === "LineString") {
+            const coordinates = geometry.coordinates;
+            const length = properties.length_m;
+            const category = properties.category_number;
+      
+            // Gehe alle Segmente im LineString durch
+            for (let i = 0; i < coordinates.length - 1; i++) {
+              const fromCoord = coordToId(coordinates[i]); // Startpunkt
+              const toCoord = coordToId(coordinates[i + 1]); // Endpunkt
+      
+              // Kante vom Startpunkt zum Endpunkt hinzufügen
+              if (!graph.has(fromCoord)) {
+                graph.set(fromCoord, []);
+              }
+              graph.get(fromCoord).push({ node: toCoord, length, category });
+            }
+          }
+        });
+      
+        return graph;
+      }
+       // Helper-Funktion: Konvertiert Koordinatenpaar in einen String (z. B. "13.4050,52.5200")
+       function coordToId(coord) {
+        return coord.join(",");
+      }
+      
+    fetch('./data/combined_features.geojson') // Relativer Pfad zur Datei
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error('Fehler beim Laden der GeoJSON-Datei');
+      }
+      return response.json();
+    })
+    .then((geojsonData) => {
+      // Hier kannst du mit den GeoJSON-Daten arbeiten
+      const graph = buildGraphFromGeoJSON(geojsonData);
+      console.log(graph)
+  
+      // Graph-Statistik ausgeben
+      console.log("Anzahl der Knoten:", graph.size);
+      let edgeCount = 0;
+      graph.forEach((edges) => {
+        edgeCount += edges.length;
+      });
+      console.log("Anzahl der Kanten:", edgeCount);
+    })
+    .catch((error) => console.error('Fehler:', error));
+      
+
+// Hier fehlt noch eine Funktion mit der wir den pareto pfad zurückverfolgen können um die routen zu finden.
+
 
     return (
         <Flex height="100%" direction="column" overflow="hidden" width="100%">
