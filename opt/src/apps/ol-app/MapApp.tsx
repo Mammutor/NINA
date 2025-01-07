@@ -324,8 +324,8 @@ export function MapApp() {
 
 
   function calculateRoute() {
-    const startId = "7.6121215,51.9741386";
-    const endId = "7.6121215,51.9741386"
+    const startId = "406151.820937201,5758898.358848147";
+    const endId = "406164.8880599412,5758893.140318773"
 
 
     fetch('./data/graph (8).json') // Pfad zur Datei relativ zu deinem Skript
@@ -361,13 +361,21 @@ export function MapApp() {
           const current = queue.shift();
           const { node: currentNode, costVector: currentCostVec } = current;
 
+          // Abbruchbedingung: Zielknoten erreicht
+        if (currentNode === endId) {
+          console.log("Zielknoten erreicht:", endId);
+          console.log("Pareto-Front am Zielknoten:", paretoFront.get(endId));
+          return paretoFront.get(endId); // Rückgabe der Pareto-Front des Zielknotens
+        }
+
           // Betrachte alle Nachbarn von currentNode
           const edges = graph.get(currentNode) || [];
           edges.forEach((edge) => {
             const nextNode = edge.node;
 
             // Berechne neuen Kostenvektor für nextNode
-            const edgeCostVec = getUnweightedCostVector(edge.costData.length, edge.costData.category);
+            
+            const edgeCostVec = getUnweightedCostVector(edge.length, edge.category);
             const newCostVec = vectorAdd(currentCostVec, edgeCostVec);
 
             // Falls keine Pareto-Front für nextNode existiert, initialisiere sie
