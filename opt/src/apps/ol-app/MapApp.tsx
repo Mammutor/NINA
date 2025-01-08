@@ -107,7 +107,7 @@ export function MapApp() {
 
       // Add address Layer
       const addressVectorSource = new VectorSource({
-        url: './data/matching_hsnr_features_with_address.geojson', // Pfad zu deinem GeoJSON
+        url: './data/matching_hsnr_features_with_address.geojson', 
         format: new GeoJSON({
           dataProjection: 'EPSG:3857',
           featureProjection: 'EPSG:3857'
@@ -165,7 +165,7 @@ export function MapApp() {
 
       // Add Street data layer
       const vectorSource2 = new VectorSource({
-        url: './data/exportedGeojsonRouting (1).geojson',
+        url: './data/exportedGeojsonRouting (2).geojson',
         format: new GeoJSON({
           dataProjection: 'EPSG:3857',
           featureProjection: 'EPSG:3857'
@@ -173,14 +173,16 @@ export function MapApp() {
       });
 
       const streetDataLayer = new VectorLayer({
-        source: vectorSource2
+        source: vectorSource2,
+        style: styleByCategory
       });
 
       map.olMap.addLayer(streetDataLayer);
 
       /*
       Dieser Code wird benötigt um category hinzuzufügen. wird in der fertigen applikation aber nicht benötigt.
-
+      */
+     /*
       // Sobald die Daten ready sind ...
       vectorSource2.once('change', function () {
 
@@ -325,6 +327,8 @@ export function MapApp() {
 
 
   function calculateRoute() {
+    console.log(startAddress)
+    console.log(destinationAddress)
     const startId = "406151.820937201,5758898.358848147";
     const endId = "406164.8880599412,5758893.140318773"
 
@@ -501,8 +505,8 @@ export function MapApp() {
 
 
   /* 
-  Dieser Code word benötigt um den Graphen zu erstellen. IN der normalen Applikation jedoch nicht notwendig, weil dieser dann schon erstellt wurde
-  fetch('./data/exportedGeojsonRouting (1).geojson') // Relativer Pfad zur Datei
+  Dieser Code wird benötigt um den Graphen zu erstellen. IN der normalen Applikation jedoch nicht notwendig, weil dieser dann schon erstellt wurde
+  fetch('./data/exportedGeojsonRouting (2).geojson') // Relativer Pfad zur Datei
     .then((response) => {
       if (!response.ok) {
         throw new Error('Fehler beim Laden der GeoJSON-Datei');
