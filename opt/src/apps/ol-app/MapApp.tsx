@@ -179,6 +179,7 @@ export function MapApp() {
       map.olMap.addLayer(streetDataLayer);
 
       /*
+      Dieser Code wird benötigt um category hinzuzufügen. wird in der fertigen applikation aber nicht benötigt.
 
       // Sobald die Daten ready sind ...
       vectorSource2.once('change', function () {
@@ -498,6 +499,9 @@ export function MapApp() {
     return coord.join(",");
   }
 
+
+  /* 
+  Dieser Code word benötigt um den Graphen zu erstellen. IN der normalen Applikation jedoch nicht notwendig, weil dieser dann schon erstellt wurde
   fetch('./data/exportedGeojsonRouting (1).geojson') // Relativer Pfad zur Datei
     .then((response) => {
       if (!response.ok) {
@@ -512,17 +516,20 @@ export function MapApp() {
       const graph = buildGraphFromGeoJSON(geojsonData);
      
       const graphObject = Object.fromEntries(graph); // Konvertiere Map in ein einfaches Objekt
+      
+
+      
       const graphJSON = JSON.stringify(graphObject, null, 2); // Formatiere als JSON
      
 
       // JSON-Datei erstellen und Download auslösen
-      /*
+      
       const blob = new Blob([graphJSON], { type: 'application/json' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = 'graph.json';
       link.click();
-      */
+      
       
       
     
@@ -538,7 +545,8 @@ export function MapApp() {
 
 
     })
-    .catch((error) => console.error('Fehler:', error));
+    
+    */
 
 
   // Hier fehlt noch eine Funktion mit der wir den pareto pfad zurückverfolgen können um die routen zu finden.
