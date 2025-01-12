@@ -20,7 +20,7 @@
 
 ## About the Project
 
-**SaBiNE**(Safe Bicycle Navigation Experience) is a university project conducted as part of the Geoinformation in Society Seminar, which is included in the Interdisciplinary Aspects module from the Geoinformatics and Spatial Data Science Master of Science study program of Uni Münster.
+**[SaBiNE](https://lhesse-um.github.io/SaBiNE/)** (Safe Bicycle Navigation Experience) is a university project conducted as part of the Geoinformation in Society Seminar, which is included in the Interdisciplinary Aspects module from the Geoinformatics and Spatial Data Science Master of Science study program of Uni Münster.
 
 It aims to create a navigation tool for cyclists in Münster that displays safe, balanced, and fast routes tailored to how confident the user feels on their bike. The project addresses the problem that, for instance, Google Maps only shows the fastest route. However, if the route includes complex intersections or areas with a high number of accidents, an alternative route is prioritized. 
 
