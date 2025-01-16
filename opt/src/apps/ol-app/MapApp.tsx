@@ -94,7 +94,7 @@ export function MapApp() {
         source: plannedAreasVectorSource,
         style: new Style({
           fill: new Fill({
-            color: 'rgba(55, 67, 61, 0.8)'
+            color: 'rgba(55, 67, 61, 0.4)'
           }),
           image: new CircleStyle({
             radius: 6,
@@ -443,7 +443,28 @@ export function MapApp() {
   function getUnweightedCostVector(length, category) {
 
     const costVector = new Array(4).fill(0);
-    costVector[category - 1] = length;
+    switch (category) {
+        case 1:
+            costVector[0] = length;
+            costVector[1] = length;
+            costVector[2] = length;
+            costVector[3] = length;
+            break;
+        case 2:
+            costVector[0] = length;
+            costVector[1] = length;
+            costVector[2] = length;
+            break;
+        case 3:
+            costVector[0] = length;
+            costVector[1] = length;
+            break;
+        case 4:
+            costVector[0] = length;
+            break;
+        default:
+            break;
+    }
 
     return costVector;
   }
