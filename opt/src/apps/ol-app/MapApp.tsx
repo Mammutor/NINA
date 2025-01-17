@@ -367,9 +367,30 @@ export function MapApp() {
     }
 
 
-    function calculateRoute() {
+    function getWeightVector(sliderValue: number) {
+        switch(sliderValue){
+            case 0: 
+                return [1.5, 2, 2.5];
+            case 1:
+                return [1.2, 1.5, 2];
+            case 2:
+                return [1, 1, 1];
+        }
+    }
 
-        fetch('./data/graph (40).json') // Pfad zur Datei relativ zu deinem Skript
+    function calculateRoute() {
+        // Berechne den Abstand zwischen startId und endId
+        let distance = calculateDistance(startId, endId);
+        console.log(`Distance between startId and endId: ${distance} meters`);
+        // Distance für abort berechnen
+        distance = distance * 2;
+        console.log('Abort Distance: ', distance)
+        
+        
+        const weightVector = getWeightVector(sliderValue);
+        
+
+        fetch('./data/graph (40).json')
             .then((response) => {
                 if (!response.ok) {
                     throw new Error("Fehler beim Laden der Datei");
@@ -388,7 +409,7 @@ export function MapApp() {
                 // Initialisiere Startknoten mit Vektor [0,0,...,0]
                 paretoFront.set(startId, [
                     {
-                        costVector: new Array(4).fill(0),
+                        costVector: new Array(5).fill(0),
                         predecessor: null
                     }
                 ]);
@@ -400,14 +421,12 @@ export function MapApp() {
                 // Hauptschleife
                 while (queue.length > 0) {
                     const current = queue.shift();
-                    const {node: currentNode, costVector: currentCostVec} = current;
+                    const { node: currentNode, costVector: currentCostVec } = current;
 
-                    // Abbruchbedingung: Zielknoten erreicht
-                    if (currentNode === endId) {
-                        const pathNodes = reconstructPath(paretoFront, startId, endId, calculatedGraph);
-                        console.log(pathNodes)
-                        highlightPath([pathNodes[0]]);
-                        return;
+                    // Ignoriere den Pfad, wenn er die maximale Distanz überschreitet
+                    if (currentCostVec[4] > distance) {
+                        console.log(`Path to node ${currentNode} exceeds max distance (${currentCostVec[4]} > ${distance}), skipping this path.`);
+                        continue; // Überspringe diesen Pfad
                     }
 
                     // Betrachte alle Nachbarn von currentNode
@@ -416,8 +435,7 @@ export function MapApp() {
                         const nextNode = edge.node;
 
                         // Berechne neuen Kostenvektor für nextNode
-
-                        const edgeCostVec = getUnweightedCostVector(edge.length, edge.category);
+                        const edgeCostVec = getUnweightedCostVector(edge.length, edge.category, weightVector);
                         const newCostVec = vectorAdd(currentCostVec, edgeCostVec);
 
                         // Falls keine Pareto-Front für nextNode existiert, initialisiere sie
@@ -450,18 +468,37 @@ export function MapApp() {
                             // Füge newCostVec zur Pareto-Front hinzu
                             currentPareto.push({
                                 costVector: newCostVec,
-                                predecessor: currentNode
+                                predecessor: currentNode,
                             });
 
-                            // Nimm nextNode in die Queue auf
-                            queue.push({node: nextNode, costVector: newCostVec});
+                            // Füge nextNode zur Warteschlange hinzu
+                            queue.push({ node: nextNode, costVector: newCostVec });
                         }
                     });
                 }
 
+// Nach der Schleife: Wähle den besten Weg aus der Pareto-Front des Zielknotens
+                if (!paretoFront.has(endId)) {
+                    console.error("Kein gültiger Pfad zum Zielknoten gefunden.");
+                } else {
+                    const endPareto = paretoFront.get(endId);
+
+                    // Suche den Kostenvektor mit dem kleinsten costVector[0]
+                    const bestPath = endPareto.reduce((best, entry) => {
+                        return entry.costVector[0] < best.costVector[0] ? entry : best;
+                    }, endPareto[0]);
+
+                    console.log("Bester Pfad mit minimalem costVector[0]:", bestPath);
+
+                    // Rekonstruiere und visualisiere den besten Pfad
+                    const pathNodes = reconstructPath(paretoFront, startId, endId, calculatedGraph);
+                    highlightPath([pathNodes.find((path) => path.costVector === bestPath.costVector)]);
+                }
+
+
                 // Rückgabe: Die Pareto-Front aller Knoten
                 //mit paretoFront.get(endId) kriegt man das ergebnis für den zielknoten
-                console.log(paretoFront.get(endId))
+                //console.log(paretoFront.get(endId))
             })
             .catch((error) => console.error("Fehler:", error));
         // Pareto-Front: Map<Knoten, [ { costVector: number[], predecessor: string } ] >
@@ -471,11 +508,31 @@ export function MapApp() {
 
     // Hilfsfunktion für die Routenberechnung: Für jede Kante wird der Kostenvektor berechnet 
     // ! ACHTUNG ! Bisher ist hier noch keine Gewichtung vorhanden 
-    function getUnweightedCostVector(length, category) {
-
-        const costVector = new Array(4).fill(0);
-        costVector[category - 1] = length;
-
+    function getUnweightedCostVector(length, category, weights) {
+        const costVector = new Array(5).fill(0);
+        costVector[4] = length;
+        switch (category) {
+            case 1: // Rot
+                costVector[3] = length;
+                costVector[2] = costVector[3] * weights[2];
+                costVector[1] = costVector[2] * weights[1];
+                costVector[0] = costVector[1] * weights[0];
+                break;
+            case 2: // Orange
+                costVector[2] = length;
+                costVector[1] = costVector[2] * weights[1];
+                costVector[0] = costVector[1] * weights[0];
+                break;
+            case 3: // Hellgrün
+                costVector[1] = length;
+                costVector[0] = costVector[1] * weights[0];
+                break;
+            case 4: // Grün
+                costVector[0] = length;
+                break;
+            default:
+                break;
+        }
         return costVector;
     }
 
@@ -649,7 +706,7 @@ export function MapApp() {
     function getEdgeCost(fromNode, toNode, graph) {
         const edges = graph.get(fromNode) || [];
         const edge = edges.find((e) => e.node === toNode);
-        return edge ? getUnweightedCostVector(edge.length, edge.category) : null;
+        return edge ? getUnweightedCostVector(edge.length, edge.category, getWeightVector(sliderValue)) : null;
     }
 
     function highlightPath(pathNodes: any[]) {
@@ -701,6 +758,25 @@ export function MapApp() {
         allFeatures.forEach((feature) => {
             feature.setStyle(routeStyle);
         });
+    }
+
+    function calculateDistance(startId: string, endId: string): number {
+        const [startLon, startLat] = transform([parseFloat(startId.split(',')[0]), parseFloat(startId.split(',')[1])], 'EPSG:3857', 'EPSG:4326');
+        const [endLon, endLat] = transform([parseFloat(endId.split(',')[0]), parseFloat(endId.split(',')[1])], 'EPSG:3857', 'EPSG:4326');
+
+        const R = 6371e3; // Earth's radius in meters
+        const φ1 = startLat * Math.PI / 180; // φ, λ in radians
+        const φ2 = endLat * Math.PI / 180;
+        const Δφ = (endLat - startLat) * Math.PI / 180;
+        const Δλ = (endLon - startLon) * Math.PI / 180;
+
+        const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        const distance = R * c; // in meters
+        return distance;
     }
 
 
@@ -914,7 +990,6 @@ export function MapApp() {
                                 isActive={measurementIsActive}
                                 onClick={toggleMeasurement}
                             />
-                            <Geolocation mapId={MAP_ID}/>
                             <InitialExtent mapId={MAP_ID}/>
                             <ZoomIn mapId={MAP_ID}/>
                             <ZoomOut mapId={MAP_ID}/>
