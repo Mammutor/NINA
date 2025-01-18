@@ -1,19 +1,6 @@
 // SPDX-FileCopyrightText: 2023 Open Pioneer project (https://github.com/open-pioneer)
 // SPDX-License-Identifier: Apache-2.0
-import {
-    Box,
-    Button,
-    Divider,
-    Flex,
-    FormControl,
-    FormLabel,
-    Text,
-    Input,
-    Slider,
-    SliderTrack,
-    SliderFilledTrack,
-    SliderThumb
-} from "@open-pioneer/chakra-integration";
+import {Box, Button, Flex, Text, Input, Slider, SliderTrack, SliderFilledTrack, SliderThumb} from "@open-pioneer/chakra-integration";
 import {MapAnchor, MapContainer, useMapModel} from "@open-pioneer/map";
 import {ScaleBar} from "@open-pioneer/scale-bar";
 import {InitialExtent, ZoomIn, ZoomOut} from "@open-pioneer/map-navigation";
@@ -22,17 +9,10 @@ import {CoordinateViewer} from "@open-pioneer/coordinate-viewer";
 import {SectionHeading, TitledSection} from "@open-pioneer/react-utils";
 import {ToolButton} from "@open-pioneer/map-ui-components";
 import {ScaleViewer} from "@open-pioneer/scale-viewer";
-import {Geolocation} from "@open-pioneer/geolocation";
-import {Notifier} from "@open-pioneer/notifier";
-import {OverviewMap} from "@open-pioneer/overview-map";
 import {MAP_ID} from "./services";
-import React, {useEffect, useId, useMemo, useState} from "react";
-import TileLayer from "ol/layer/Tile";
+import React, {useEffect, useId, useState} from "react";
 import {Measurement} from "@open-pioneer/measurement";
-import OSM from "ol/source/OSM";
 import {PiRulerLight} from "react-icons/pi";
-import {BasemapSwitcher} from "@open-pioneer/basemap-switcher";
-import {mapLogic} from "./mapLogic";
 import VectorSource from "ol/source/Vector";
 import VectorLayer from "ol/layer/Vector.js";
 import GeoJSON from 'ol/format/GeoJSON';
@@ -41,11 +21,11 @@ import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
 import CircleStyle from 'ol/style/Circle';
 import {transform} from 'ol/proj';
-import {isEmpty} from 'ol/extent';
 import {Image} from "@chakra-ui/react";
 import Feature from 'ol/Feature.js';
 import LineString from 'ol/geom/LineString.js';
 import Select from "react-select";
+import {coordinates} from "ol/geom/flat/reverse";
 
 
 export function MapApp() {
@@ -55,16 +35,19 @@ export function MapApp() {
 
     const [measurementIsActive, setMeasurementIsActive] = useState<boolean>(false);
     const [startAddress, setStartAddress] = useState<string>('');
+    const [startId, setStartId] = useState<string>('');
+    const [startCoordinates, setStartCoordinates] = useState<number[]>([]);
     const [destinationAddress, setDestinationAddress] = useState<string>('');
+    const [endId, setEndId] = useState<string>('');
+    const [endCoordinates, setEndCoordinates] = useState<number[]>([]);
     const [addressSuggestions, setAddressSuggestions] = useState([]);
+    const [coordinatesMap, setCoordinatesMap] = useState({});
     const [filteredDestinations, setFilteredDestinations] = useState([]);
     const [addressToAreaMapping, setAddressToAreaMapping] = useState({});
     const [sliderValue, setSliderValue] = useState<number>(1);
     const [safetyRating, setSafetyRating] = useState<string>('');
     const [timeEfficiencyRating, setTimeEfficiencyRating] = useState<string>('');
     const [nearestNodeMapping, setNearestNodeMapping] = useState({});
-    const [startId, setStartId] = useState<string>('');
-    const [endId, setEndId] = useState<string>('');
 
 
     const sliderLabels = ["Safest", "Balanced", "Fastest"];
@@ -346,25 +329,44 @@ export function MapApp() {
         fetch("./data/Matched_Addresses_in_Planned_Areas.csv")
             .then((response) => response.text())
             .then((data) => {
-                const rows = data.split("\n").slice(1);
+                const rows = data.split("\n").slice(1); // Header überspringen
                 const mapping = {};
                 const nearestNodeMap = {};
-                const addresses = rows.map((row) => {
-                    const [address, plannedAreaId, nearest_node] = row.split(";");
+                const coordinatesMap = {};
+                const addresses = [];
+
+                rows.forEach((row) => {
+                    const [address, plannedAreaId, nearest_node, coordinates] = row.split(";");
+
                     if (address && plannedAreaId) {
-                        mapping[address] = plannedAreaId.trim();
+                        const trimmedAddress = address.trim();
+
+                        // Mapping der Daten
+                        mapping[trimmedAddress] = plannedAreaId.trim();
+
                         if (nearest_node) {
-                            nearestNodeMap[address] = nearest_node.trim();
+                            nearestNodeMap[trimmedAddress] = nearest_node.trim();
                         }
-                        return address;
+
+                        if (coordinates) {
+                            coordinatesMap[trimmedAddress] = coordinates.trim();
+                        }
+
+                        addresses.push(trimmedAddress);
                     }
-                    return null;
-                }).filter((address) => address);
+                });
+
+                // Setze State-Werte
                 setAddressToAreaMapping(mapping);
-                setNearestNodeMapping(nearestNodeMap); // nearestNodeMapping wird aktualisiert
+                setNearestNodeMapping(nearestNodeMap);
                 setAddressSuggestions(addresses);
-            });
+                setCoordinatesMap(coordinatesMap); // Speichere die Koordinaten für spätere Verwendung
+                
+                
+            })
+            .catch((error) => console.error("Error loading CSV data:", error));
     }
+
 
 
     function getWeightVector(sliderValue: number) {
@@ -477,7 +479,7 @@ export function MapApp() {
                     });
                 }
 
-// Nach der Schleife: Wähle den besten Weg aus der Pareto-Front des Zielknotens
+                // Nach der Schleife: Wähle den besten Weg aus der Pareto-Front des Zielknotens
                 if (!paretoFront.has(endId)) {
                     console.error("Kein gültiger Pfad zum Zielknoten gefunden.");
                 } else {
@@ -758,6 +760,58 @@ export function MapApp() {
         allFeatures.forEach((feature) => {
             feature.setStyle(routeStyle);
         });
+
+        if (startId && startCoordinates && endId && endCoordinates) {
+            // StartId und EndId in Koordinaten umwandeln
+            const startIdCoordinates = startId.split(",").map(Number);
+            const endIdCoordinates = endId.split(",").map(Number);
+
+            // Erstelle die LineStrings
+            const startLineString = new LineString([startCoordinates, startIdCoordinates]);
+            const endLineString = new LineString([endCoordinates, endIdCoordinates]);
+
+            console.log("Start LineString:", startLineString);
+            console.log("End LineString:", endLineString);
+
+            // Erstelle Features
+            const startFeature = new Feature({
+                geometry: startLineString,
+            });
+
+            const endFeature = new Feature({
+                geometry: endLineString,
+            });
+
+            // Identifizieren des Layers
+            const layers = map.olMap.getLayers().getArray();
+            let addressToRouteLayer = layers.find(layer => layer.get('id') === "addressToRouteLayer");
+
+            // Falls der Layer nicht existiert, erstellen Sie ihn
+            if (!addressToRouteLayer) {
+                addressToRouteLayer = new VectorLayer({
+                    source: new VectorSource(),
+                    style: new Style({
+                        stroke: new Stroke({
+                            color: 'lightblue', // Farbe der Linien
+                            width: 6,           // Breite der Linien
+                            lineDash: [1, 10],  // Gepunktete Linie
+                        }),
+                    }),
+                });
+
+                addressToRouteLayer.set('id', 'addressToRouteLayer');
+                map.olMap.addLayer(addressToRouteLayer);
+            }
+
+            // Entferne alte Features
+            const source = addressToRouteLayer.getSource();
+            source.clear();
+
+            // Füge neue Features hinzu
+            source.addFeatures([startFeature, endFeature]);
+        }
+
+
     }
 
     function calculateDistance(startId: string, endId: string): number {
@@ -778,8 +832,7 @@ export function MapApp() {
         const distance = R * c; // in meters
         return distance;
     }
-
-
+    
     return (
         <Flex height="100%" direction="column" overflow="hidden" width="100%">
             <Flex
@@ -800,16 +853,25 @@ export function MapApp() {
                     <Select
                         value={
                             startId
-                                ? {value: startId, label: startAddress}
+                                ? { value: startId, label: startAddress }
                                 : null
                         }
                         options={addressSuggestions.map((address) => ({
-                            value: nearestNodeMapping[address], // nearest_node wird hier als value verwendet
-                            label: address, // Adresse bleibt als Anzeige
+                            value: nearestNodeMapping[address], // nearest_node bleibt das Value
+                            label: address, // Nur die Adresse anzeigen
                         }))}
                         onChange={(selectedOption) => {
-                            setStartId(selectedOption ? selectedOption.value : ""); // nearest_node wird direkt gesetzt
-                            setStartAddress(selectedOption ? selectedOption.label : ""); // Adresse wird ebenfalls gespeichert
+                            setStartId(selectedOption ? selectedOption.value : ""); // nearest_node setzen
+                            setStartAddress(selectedOption ? selectedOption.label : ""); // Adresse setzen
+
+                            // Koordinaten basierend auf der Auswahl setzen
+                            if (selectedOption && coordinatesMap[selectedOption.label]) {
+                                const coords = coordinatesMap[selectedOption.label].split(",").map(Number);
+                                setStartCoordinates(coords); // Speichere die Startkoordinaten
+                                console.log("Start Coordinates:", coords); // Debugging
+                            } else {
+                                setStartCoordinates([]);
+                            }
                         }}
                         placeholder="Please enter your starting address"
                         isClearable
@@ -820,23 +882,39 @@ export function MapApp() {
                             }),
                         }}
                     />
+
                     <Select
                         value={
                             endId
-                                ? {value: endId, label: destinationAddress}
+                                ? { value: endId, label: destinationAddress }
                                 : null
                         }
                         options={filteredDestinations.map((address) => ({
-                            value: nearestNodeMapping[address], // nearest_node wird hier als value verwendet
-                            label: address, // Adresse bleibt als Anzeige
+                            value: nearestNodeMapping[address], // nearest_node bleibt das Value
+                            label: address, // Nur die Adresse anzeigen
                         }))}
                         onChange={(selectedOption) => {
-                            setEndId(selectedOption ? selectedOption.value : ""); // nearest_node wird direkt gesetzt
-                            setDestinationAddress(selectedOption ? selectedOption.label : ""); // Adresse wird ebenfalls gespeichert
+                            setEndId(selectedOption ? selectedOption.value : ""); // nearest_node setzen
+                            setDestinationAddress(selectedOption ? selectedOption.label : ""); // Adresse setzen
+
+                            // Koordinaten basierend auf der Auswahl setzen
+                            if (selectedOption && coordinatesMap[selectedOption.label]) {
+                                const coords = coordinatesMap[selectedOption.label].split(",").map(Number);
+                                setEndCoordinates(coords); // Speichere die Zielkoordinaten
+                                console.log("End Coordinates:", coords); // Debugging
+                            } else {
+                                setEndCoordinates([]);
+                            }
                         }}
                         placeholder="Please enter your destination address"
                         isClearable
-                        isDisabled={!startAddress}
+                        isDisabled={!startAddress} // Nur aktivieren, wenn eine Startadresse gewählt wurde
+                        styles={{
+                            container: (provided) => ({
+                                ...provided,
+                                marginBottom: "16px",
+                            }),
+                        }}
                     />
                 </Box>
 
