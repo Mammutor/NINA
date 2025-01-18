@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: 2023 Open Pioneer project (https://github.com/open-pioneer)
 // SPDX-License-Identifier: Apache-2.0
+import OLText from 'ol/style/Text';
 import {Box, Button, Flex, Text, Input, Slider, SliderTrack, SliderFilledTrack, SliderThumb} from "@open-pioneer/chakra-integration";
 import {MapAnchor, MapContainer, useMapModel} from "@open-pioneer/map";
 import {ScaleBar} from "@open-pioneer/scale-bar";
@@ -26,6 +27,7 @@ import Feature from 'ol/Feature.js';
 import LineString from 'ol/geom/LineString.js';
 import Select from "react-select";
 import {coordinates} from "ol/geom/flat/reverse";
+import {Point} from "ol/geom";
 
 
 export function MapApp() {
@@ -53,17 +55,39 @@ export function MapApp() {
     const sliderLabels = ["Safest", "Balanced", "Fastest"];
 
     const resetInputs = () => {
+        setStartId("");
         setStartAddress("");
+        setStartCoordinates([]);
+        setEndId("");
         setDestinationAddress("");
+        setEndCoordinates([]);
         setSliderValue(0);
 
-        // remove route
-        const layers = map.olMap.getLayers().getArray();
-        const targetLayer = layers.find(layer => layer.get('id') === "routeLayer");
-        if (targetLayer) {
-            const source = targetLayer.getSource();
-            source.clear();
+        if (map?.olMap) {
+            const layers = map.olMap.getLayers().getArray();
+
+            // Entferne alle Marker
+            const markerLayer = layers.find(layer => layer.get('id') === "markerLayer");
+            if (markerLayer) {
+                const source = markerLayer.getSource();
+                source.clear(); // Entfernt alle Features aus dem Marker-Layer
+            }
+
+            // Entferne alle Linien
+            const routeLayer = layers.find(layer => layer.get('id') === "addressToRouteLayer");
+            if (routeLayer) {
+                const source = routeLayer.getSource();
+                source.clear(); // Entfernt alle Features aus dem Linien-Layer
+            }
+            
+            // Entferne route
+            const targetLayer = layers.find(layer => layer.get('id') === "routeLayer");
+            if (targetLayer) {
+                const source = targetLayer.getSource();
+                source.clear();
+            }
         }
+        
     };
 
     function toggleMeasurement() {
@@ -832,6 +856,87 @@ export function MapApp() {
         const distance = R * c; // in meters
         return distance;
     }
+
+    function updateMarkers() {
+        if (!map) return;
+
+        // Identifiziere oder erstelle den Marker-Layer
+        const layers = map.olMap.getLayers().getArray();
+        let markerLayer = layers.find(layer => layer.get('id') === "markerLayer");
+
+        if (!markerLayer) {
+            markerLayer = new VectorLayer({
+                source: new VectorSource(),
+                style: null, // Marker-Stile werden individuell gesetzt
+            });
+            markerLayer.set('id', 'markerLayer');
+            map.olMap.addLayer(markerLayer);
+        }
+
+        const source = markerLayer.getSource();
+
+        // Entferne Marker, falls keine Startkoordinaten gesetzt sind
+        if (startCoordinates.length === 0) {
+            const startFeature = source.getFeatures().find(f => f.get('type') === 'start');
+            if (startFeature) source.removeFeature(startFeature);
+        } else {
+            // Füge oder aktualisiere den Start-Marker
+            let startFeature = source.getFeatures().find(f => f.get('type') === 'start');
+            if (!startFeature) {
+                startFeature = new Feature({ geometry: new Point(startCoordinates)});
+                startFeature.set('type', 'start'); // Marker-Typ setzen
+                source.addFeature(startFeature);
+            } else {
+                startFeature.setGeometry(new Point(startCoordinates));
+            }
+            startFeature.setStyle(new Style({
+                image: new CircleStyle({
+                    radius: 6,
+                    fill: new Fill({ color: 'black' }),
+                }),
+                text: new OLText({
+                    text: "Start",
+                    font: '12px Calibri,sans-serif',
+                    fill: new Fill({ color: 'black' }),
+                    stroke: new Stroke({ color: 'white', width: 3 }),
+                    offsetY: -15, // Text oberhalb des Markers
+                }),
+            }));
+        }
+
+        // Entferne Marker, falls keine Endkoordinaten gesetzt sind
+        if (endCoordinates.length === 0) {
+            const endFeature = source.getFeatures().find(f => f.get('type') === 'end');
+            if (endFeature) source.removeFeature(endFeature);
+        } else {
+            // Füge oder aktualisiere den End-Marker
+            let endFeature = source.getFeatures().find(f => f.get('type') === 'end');
+            if (!endFeature) {
+                endFeature = new Feature({ geometry: new Point(endCoordinates)});
+                endFeature.set('type', 'end'); // Marker-Typ setzen
+                source.addFeature(endFeature);
+            } else {
+                endFeature.setGeometry(new Point(endCoordinates));
+            }
+            endFeature.setStyle(new Style({
+                image: new CircleStyle({
+                    radius: 6,
+                    fill: new Fill({ color: 'black' }),
+                }),
+                text: new OLText({
+                    text: "End",
+                    font: '12px Calibri,sans-serif',
+                    fill: new Fill({ color: 'black' }),
+                    stroke: new Stroke({ color: 'white', width: 3 }),
+                    offsetY: -15, // Text oberhalb des Markers
+                }),
+            }));
+        }
+    }
+
+    useEffect(() => {
+        updateMarkers();
+    }, [startCoordinates, endCoordinates]);
     
     return (
         <Flex height="100%" direction="column" overflow="hidden" width="100%">
@@ -857,20 +962,18 @@ export function MapApp() {
                                 : null
                         }
                         options={addressSuggestions.map((address) => ({
-                            value: nearestNodeMapping[address], // nearest_node bleibt das Value
-                            label: address, // Nur die Adresse anzeigen
+                            value: nearestNodeMapping[address],
+                            label: address,
                         }))}
                         onChange={(selectedOption) => {
-                            setStartId(selectedOption ? selectedOption.value : ""); // nearest_node setzen
-                            setStartAddress(selectedOption ? selectedOption.label : ""); // Adresse setzen
+                            setStartId(selectedOption ? selectedOption.value : "");
+                            setStartAddress(selectedOption ? selectedOption.label : "");
 
-                            // Koordinaten basierend auf der Auswahl setzen
                             if (selectedOption && coordinatesMap[selectedOption.label]) {
                                 const coords = coordinatesMap[selectedOption.label].split(",").map(Number);
-                                setStartCoordinates(coords); // Speichere die Startkoordinaten
-                                console.log("Start Coordinates:", coords); // Debugging
+                                setStartCoordinates(coords);
                             } else {
-                                setStartCoordinates([]);
+                                setStartCoordinates([]); // Entfernt den Marker
                             }
                         }}
                         placeholder="Please enter your starting address"
@@ -890,25 +993,23 @@ export function MapApp() {
                                 : null
                         }
                         options={filteredDestinations.map((address) => ({
-                            value: nearestNodeMapping[address], // nearest_node bleibt das Value
-                            label: address, // Nur die Adresse anzeigen
+                            value: nearestNodeMapping[address],
+                            label: address,
                         }))}
                         onChange={(selectedOption) => {
-                            setEndId(selectedOption ? selectedOption.value : ""); // nearest_node setzen
-                            setDestinationAddress(selectedOption ? selectedOption.label : ""); // Adresse setzen
+                            setEndId(selectedOption ? selectedOption.value : "");
+                            setDestinationAddress(selectedOption ? selectedOption.label : "");
 
-                            // Koordinaten basierend auf der Auswahl setzen
                             if (selectedOption && coordinatesMap[selectedOption.label]) {
                                 const coords = coordinatesMap[selectedOption.label].split(",").map(Number);
-                                setEndCoordinates(coords); // Speichere die Zielkoordinaten
-                                console.log("End Coordinates:", coords); // Debugging
+                                setEndCoordinates(coords);
                             } else {
-                                setEndCoordinates([]);
+                                setEndCoordinates([]); // Entfernt den Marker
                             }
                         }}
                         placeholder="Please enter your destination address"
                         isClearable
-                        isDisabled={!startAddress} // Nur aktivieren, wenn eine Startadresse gewählt wurde
+                        isDisabled={!startAddress}
                         styles={{
                             container: (provided) => ({
                                 ...provided,
