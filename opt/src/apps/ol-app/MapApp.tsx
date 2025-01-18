@@ -28,6 +28,7 @@ import LineString from 'ol/geom/LineString.js';
 import Select from "react-select";
 import {coordinates} from "ol/geom/flat/reverse";
 import {Point} from "ol/geom";
+import { createEmpty, extend } from 'ol/extent';
 
 
 export function MapApp() {
@@ -404,6 +405,37 @@ export function MapApp() {
         }
     }
 
+    function zoomToFeatures() {
+        const layers = map.olMap.getLayers().getArray();
+        const targetLayer = layers.find(layer => layer.get('id') === "routeLayer");
+        if (targetLayer) {
+            // Hole die Quelle der Layer
+            const source = targetLayer.getSource();
+            const allFeatures = source.getFeatures();
+
+            // Filtere Features, die das Attribut 'route' mit dem Wert true haben
+            const routeFeatures = allFeatures.filter(feature => feature.get('route') === 'true');
+            console.log("test", routeFeatures);
+
+            if (routeFeatures.length > 0) {
+                // Erstelle eine Bounding-Box aus den gefilterten Features
+                const extent = createEmpty();
+                routeFeatures.forEach(feature => {
+                    extend(extent, feature.getGeometry().getExtent());
+                });
+
+                // Passe die Karte an die Bounding-Box an
+                map.olMap.getView().fit(extent, { padding: [50, 50, 50, 50], duration: 1000 });
+                console.log(`Gefittet auf ${routeFeatures.length} Features mit 'route = true'.`);
+            } else {
+                console.log('Keine Features mit dem Attribut "route = true" gefunden.');
+            }
+        } else {
+            console.log('Layer mit der ID "routeLayer" nicht gefunden.');
+        }
+        
+    }
+
     function calculateRoute() {
         // Berechne den Abstand zwischen startId und endId
         let distance = calculateDistance(startId, endId);
@@ -519,6 +551,7 @@ export function MapApp() {
                     // Rekonstruiere und visualisiere den besten Pfad
                     const pathNodes = reconstructPath(paretoFront, startId, endId, calculatedGraph);
                     highlightPath([pathNodes.find((path) => path.costVector === bestPath.costVector)]);
+                    zoomToFeatures();
                 }
 
 
@@ -761,9 +794,8 @@ export function MapApp() {
 
         const routeStyle = new Style({
             stroke: new Stroke({
-                color: 'blue', // Farbe der Linie
-                width: 6,      // Breite der Linie
-                lineDash: [10, 10], // Optional: gestrichelte Linie
+                color: 'rgba(0,0,255,0.8)', // Farbe der Linie
+                width: 5 // Optional: gestrichelte Linie
             }),
         });
 
@@ -783,6 +815,7 @@ export function MapApp() {
         }
         allFeatures.forEach((feature) => {
             feature.setStyle(routeStyle);
+            feature.set('route', 'true');
         });
 
         if (startId && startCoordinates && endId && endCoordinates) {
