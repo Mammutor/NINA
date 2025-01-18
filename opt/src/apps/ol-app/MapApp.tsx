@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2023 Open Pioneer project (https://github.com/open-pioneer)
 // SPDX-License-Identifier: Apache-2.0
 import OLText from 'ol/style/Text';
-import {Box, Button, Flex, Text, Input, Slider, SliderTrack, SliderFilledTrack, SliderThumb} from "@open-pioneer/chakra-integration";
+import {Switch, Box, Button, Flex, Text, Input, Slider, SliderTrack, SliderFilledTrack, SliderThumb} from "@open-pioneer/chakra-integration";
 import {MapAnchor, MapContainer, useMapModel} from "@open-pioneer/map";
 import {ScaleBar} from "@open-pioneer/scale-bar";
 import {InitialExtent, ZoomIn, ZoomOut} from "@open-pioneer/map-navigation";
@@ -51,6 +51,9 @@ export function MapApp() {
     const [safetyRating, setSafetyRating] = useState<string>('');
     const [timeEfficiencyRating, setTimeEfficiencyRating] = useState<string>('');
     const [nearestNodeMapping, setNearestNodeMapping] = useState({});
+    const [isSwitchEnabled, setIsSwitchEnabled] = useState(false);
+    const [isSwitchChecked, setIsSwitchChecked] = useState(false);
+    const [mapGraph, setMapGraph] = useState<Map<string, any>>(new Map());
 
 
     const sliderLabels = ["Safest", "Balanced", "Fastest"];
@@ -63,6 +66,11 @@ export function MapApp() {
         setDestinationAddress("");
         setEndCoordinates([]);
         setSliderValue(0);
+        if (isSwitchEnabled) {
+            // Wenn deaktiviert, Switch zurücksetzen
+            setIsSwitchChecked(false);
+        }
+        setIsSwitchEnabled((prev) => !prev);
 
         if (map?.olMap) {
             const layers = map.olMap.getLayers().getArray();
@@ -112,10 +120,11 @@ export function MapApp() {
 
             const routeVectorLayer = new VectorLayer({
                 source: new VectorSource(),
+                style: (feature) => {
+                    return isSwitchChecked ? styleByCategory(feature) : styleDefaultBlue(feature);
+                },
             });
-
             routeVectorLayer.set('id', 'routeLayer');
-
             map.olMap.addLayer(routeVectorLayer);
 
 
@@ -173,38 +182,7 @@ export function MapApp() {
 
             // GeoJSON-Layer zur Karte hinzufügen
             map.olMap.addLayer(addressLayer);
-
-            function styleByCategory(feature) {
-                const category = feature.get('category_number');
-                let color;
-
-                switch (category) {
-                    case 4:
-                        color = 'blue';
-                        break;
-                    case 3:
-                        color = 'rgba(34, 192, 13, 0.8)';
-                        break;
-                    case 2:
-                        color = 'yellow';
-                        break;
-                    case 1:
-                        color = 'red';
-                        break;
-                    default:
-                        color = 'gray';
-                }
-
-                return new Style({
-                    stroke: new Stroke({
-                        color: color,
-                        width: 2
-                    }),
-                    fill: new Fill({
-                        color: color
-                    })
-                });
-            }
+            
 
             // Add Street data layer
             const vectorSource2 = new VectorSource({
@@ -220,6 +198,7 @@ export function MapApp() {
                 style: styleByCategory,
                 visible: false
             });
+            streetDataLayer.set('id', 'streetDataLayer');
 
             map.olMap.addLayer(streetDataLayer);
 
@@ -331,6 +310,19 @@ export function MapApp() {
     }, [map]);
 
     useEffect(() => {
+        if (map?.olMap) {
+            const layers = map.olMap.getLayers().getArray();
+            const routeLayer = layers.find(layer => layer.get('id') === "routeLayer");
+            if (routeLayer) {
+                routeLayer.setStyle((feature) => {
+                    return isSwitchChecked ? styleByCategory(feature) : styleDefaultBlue(feature);
+                });
+               
+            }
+        }
+    }, [isSwitchChecked, map]);
+
+    useEffect(() => {
         // Fetch addresses and their planned_area_id from the CSV file
         fillAdressInput();
 
@@ -415,7 +407,6 @@ export function MapApp() {
 
             // Filtere Features, die das Attribut 'route' mit dem Wert true haben
             const routeFeatures = allFeatures.filter(feature => feature.get('route') === 'true');
-            console.log("test", routeFeatures);
 
             if (routeFeatures.length > 0) {
                 // Erstelle eine Bounding-Box aus den gefilterten Features
@@ -437,6 +428,7 @@ export function MapApp() {
     }
 
     function calculateRoute() {
+        setIsSwitchEnabled(true);
         // Berechne den Abstand zwischen startId und endId
         let distance = calculateDistance(startId, endId);
         console.log(`Distance between startId and endId: ${distance} meters`);
@@ -456,8 +448,10 @@ export function MapApp() {
                 return response.json();
             })
             .then((graphObject) => {
+                
 
                 const calculatedGraph = new Map(Object.entries(graphObject)); // JSON in Map umwandeln
+                setMapGraph(calculatedGraph)
                 console.log("Graph erfolgreich geladen:", calculatedGraph);
 
                 // Nutze den geladenen Graph
@@ -483,7 +477,6 @@ export function MapApp() {
 
                     // Ignoriere den Pfad, wenn er die maximale Distanz überschreitet
                     if (currentCostVec[4] > distance) {
-                        console.log(`Path to node ${currentNode} exceeds max distance (${currentCostVec[4]} > ${distance}), skipping this path.`);
                         continue; // Überspringe diesen Pfad
                     }
 
@@ -550,7 +543,7 @@ export function MapApp() {
 
                     // Rekonstruiere und visualisiere den besten Pfad
                     const pathNodes = reconstructPath(paretoFront, startId, endId, calculatedGraph);
-                    highlightPath([pathNodes.find((path) => path.costVector === bestPath.costVector)]);
+                    highlightPath([pathNodes.find((path) => path.costVector === bestPath.costVector)], calculatedGraph);
                     zoomToFeatures();
                 }
 
@@ -768,108 +761,101 @@ export function MapApp() {
         return edge ? getUnweightedCostVector(edge.length, edge.category, getWeightVector(sliderValue)) : null;
     }
 
-    function highlightPath(pathNodes: any[]) {
-
-        // Array zum Sammeln aller Features
-        const allFeatures = [];
-
-        pathNodes.forEach((path) => {
-            const coordinates = path.path.map((node) => {
-                const [lon, lat] = node.split(',').map((val) => parseFloat(val));
-                return [lon, lat];
-            });
-
-            // Erstelle eine LineString-Geometrie für den aktuellen Pfad
-            const lineString = new LineString(coordinates);
-
-            // Erstelle ein Feature für den aktuellen Pfad
-            const feature = new Feature({
-                geometry: lineString,
-            });
-
-            // Füge das Feature zum Feature-Array hinzu
-            allFeatures.push(feature);
-        });
-
-
-        const routeStyle = new Style({
-            stroke: new Stroke({
-                color: 'rgba(0,0,255,0.8)', // Farbe der Linie
-                width: 5 // Optional: gestrichelte Linie
-            }),
-        });
-
+    function highlightPath(paths, graph: Map<string, any>) {
+        // 1) Route-Layer und Source ermitteln
         const layers = map.olMap.getLayers().getArray();
         const targetLayer = layers.find(layer => layer.get('id') === "routeLayer");
 
-        if (targetLayer) {
-            const source = targetLayer.getSource();
-
-            // Entferne alle bestehenden Features aus der Source
-            source.clear();
-
-            // Füge neue Features hinzu
-            source.addFeatures(allFeatures);
-        } else {
+        if (!targetLayer) {
             console.error(`Layer mit ID "routeLayer" nicht gefunden.`);
+            return;
         }
-        allFeatures.forEach((feature) => {
-            feature.setStyle(routeStyle);
-            feature.set('route', 'true');
-        });
 
-        if (startId && startCoordinates && endId && endCoordinates) {
-            // StartId und EndId in Koordinaten umwandeln
-            const startIdCoordinates = startId.split(",").map(Number);
-            const endIdCoordinates = endId.split(",").map(Number);
+        const source = targetLayer.getSource();
+        // Alle alten Routen-Features entfernen
+        source.clear();
 
-            // Erstelle die LineStrings
-            const startLineString = new LineString([startCoordinates, startIdCoordinates]);
-            const endLineString = new LineString([endCoordinates, endIdCoordinates]);
+        // 2) Für jeden Pfad in paths
+        paths.forEach((singlePath) => {
+            // singlePath.path = Array der Knoten (z.B. ["13.41,52.52", "13.42,52.53", ...])
+            const routeSegments = []; // Array zum Sammeln der Segment-Features
 
-            console.log("Start LineString:", startLineString);
-            console.log("End LineString:", endLineString);
+            for (let i = 0; i < singlePath.path.length - 1; i++) {
+                const fromNode = singlePath.path[i];
+                const toNode = singlePath.path[i + 1];
 
-            // Erstelle Features
-            const startFeature = new Feature({
-                geometry: startLineString,
-            });
+                // Suche die Edge im Graph
+                const edges = graph.get(fromNode); // <-- Dein Graph in einer Variable "mapGraph"
+                if (!edges) continue;
 
-            const endFeature = new Feature({
-                geometry: endLineString,
-            });
+                // Gesuchte Kante
+                const edge = edges.find(e => e.node === toNode);
+                if (!edge) continue;
 
-            // Identifizieren des Layers
-            const layers = map.olMap.getLayers().getArray();
-            let addressToRouteLayer = layers.find(layer => layer.get('id') === "addressToRouteLayer");
+                // Kategorie aus der Kante holen
+                const cat = edge.category; // 1, 2, 3, 4 ...
 
-            // Falls der Layer nicht existiert, erstellen Sie ihn
-            if (!addressToRouteLayer) {
-                addressToRouteLayer = new VectorLayer({
-                    source: new VectorSource(),
-                    style: new Style({
-                        stroke: new Stroke({
-                            color: 'lightblue', // Farbe der Linien
-                            width: 6,           // Breite der Linien
-                            lineDash: [1, 10],  // Gepunktete Linie
-                        }),
-                    }),
+                // Koordinaten als [lon, lat] aus fromNode und toNode
+                const fromCoord = fromNode.split(',').map(Number);
+                const toCoord = toNode.split(',').map(Number);
+
+                // OpenLayers-LineString erstellen
+                const lineSegment = new LineString([fromCoord, toCoord]);
+
+                // Neues Feature für das Segment
+                const segmentFeature = new Feature({
+                    geometry: lineSegment,
                 });
+                // category_number setzen, damit styleByCategory() die Farbe wählen kann
+                segmentFeature.set('category_number', cat);
+                // Optional: Markiere dieses Feature als Teil der Route
+                segmentFeature.set('route', 'true');
 
-                addressToRouteLayer.set('id', 'addressToRouteLayer');
-                map.olMap.addLayer(addressToRouteLayer);
+                routeSegments.push(segmentFeature);
             }
 
-            // Entferne alte Features
-            const source = addressToRouteLayer.getSource();
-            source.clear();
+            // 3) Features in die Source des Route-Layers hinzufügen
+            source.addFeatures(routeSegments);
+        });
+    }
 
-            // Füge neue Features hinzu
-            source.addFeatures([startFeature, endFeature]);
+    function styleDefaultBlue() {
+        return new Style({
+            stroke: new Stroke({
+                color: 'rgba(0, 0, 255, 0.8)', // Einheitliche blaue Farbe
+                width: 5,
+            }),
+        });
+    }
+    function styleByCategory(feature) {
+        const category = feature.get('category_number');
+        let color;
+
+        switch (category) {
+            case 4:
+                color = 'blue';
+                break;
+            case 3:
+                color = 'rgba(34, 192, 13, 0.8)';
+                break;
+            case 2:
+                color = 'yellow';
+                break;
+            case 1:
+                color = 'red';
+                break;
+            default:
+                color = 'gray';
         }
 
-
+        return new Style({
+            stroke: new Stroke({
+                color: color,
+                width: 3,
+            }),
+        });
     }
+
 
     function calculateDistance(startId: string, endId: string): number {
         const [startLon, startLat] = transform([parseFloat(startId.split(',')[0]), parseFloat(startId.split(',')[1])], 'EPSG:3857', 'EPSG:4326');
@@ -1141,6 +1127,21 @@ export function MapApp() {
                     <Button colorScheme="red" mb={4} onClick={resetInputs}>
                         Reset Input
                     </Button>
+                    {/* Toggle */}
+                    <Box>
+                        <Flex direction="column" alignItems="center" mb={1}>
+                            <Text mb={2} textAlign="center">
+                                Show Street Safety Category
+                            </Text>
+                            <Switch
+                                size="lg"
+                                colorScheme="green"
+                                isDisabled={!isSwitchEnabled}
+                                isChecked={isSwitchChecked}
+                                onChange={(e) => setIsSwitchChecked(e.target.checked)}
+                            />
+                        </Flex>
+                    </Box>
                 </Flex>
             </Flex>
 
