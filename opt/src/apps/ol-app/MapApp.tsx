@@ -81,6 +81,8 @@ export function MapApp() {
             setIsSwitchChecked(false);
         }
         setIsSwitchEnabled((prev) => !prev);
+        setSafetyRating("");
+        setTimeEfficiencyRating("");
 
         if (map?.olMap) {
             const layers = map.olMap.getLayers().getArray();
@@ -1107,7 +1109,7 @@ export function MapApp() {
                                 setStartCoordinates([]); // Entfernt den Marker
                             }
                         }}
-                        placeholder="Please enter your starting address"
+                        placeholder="Enter your starting address"
                         isClearable
                         styles={{
                             container: (provided) => ({
@@ -1138,7 +1140,7 @@ export function MapApp() {
                                 setEndCoordinates([]); // Entfernt den Marker
                             }
                         }}
-                        placeholder="Please enter your destination address"
+                        placeholder="Enter your destination address"
                         isClearable
                         isDisabled={!startAddress}
                         styles={{
@@ -1217,7 +1219,7 @@ export function MapApp() {
                     </Text>
                     <Input
                         id="safetyRating"
-                        placeholder="Safety Rating (1.0 - 6.0 )"
+                        placeholder="Safety Rating (1.0 - 6.0)"
                         value={safetyRating}
                         textAlign={"center"}
                         mb={4}
@@ -1225,7 +1227,7 @@ export function MapApp() {
                     />
                     <Input
                         id="timeEfficiencyRating"
-                        placeholder="Distance/Time"
+                        placeholder="Distance (Time)"
                         value={timeEfficiencyRating}
                         textAlign={"center"}
                         readOnly={true}
