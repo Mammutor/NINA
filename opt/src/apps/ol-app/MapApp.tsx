@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2023 Open Pioneer project (https://github.com/open-pioneer)
 // SPDX-License-Identifier: Apache-2.0
-import OLText from 'ol/style/Text';
+
+import OLText from "ol/style/Text";
 import {
     Box,
     Button,
@@ -11,64 +12,81 @@ import {
     SliderThumb,
     SliderTrack,
     Switch,
-    Text
+    Text,
 } from "@open-pioneer/chakra-integration";
-import {MapAnchor, MapContainer, useMapModel} from "@open-pioneer/map";
-import {ScaleBar} from "@open-pioneer/scale-bar";
-import {InitialExtent, ZoomIn, ZoomOut} from "@open-pioneer/map-navigation";
-import {useIntl} from "open-pioneer:react-hooks";
-import {CoordinateViewer} from "@open-pioneer/coordinate-viewer";
-import {SectionHeading, TitledSection} from "@open-pioneer/react-utils";
-import {ToolButton} from "@open-pioneer/map-ui-components";
-import {ScaleViewer} from "@open-pioneer/scale-viewer";
-import {MAP_ID} from "./services";
-import React, {useEffect, useId, useState} from "react";
-import {Measurement} from "@open-pioneer/measurement";
-import {PiRulerLight} from "react-icons/pi";
+import { MapAnchor, MapContainer, useMapModel } from "@open-pioneer/map";
+import { ScaleBar } from "@open-pioneer/scale-bar";
+import { InitialExtent, ZoomIn, ZoomOut } from "@open-pioneer/map-navigation";
+import { useIntl } from "open-pioneer:react-hooks";
+import { CoordinateViewer } from "@open-pioneer/coordinate-viewer";
+import { SectionHeading, TitledSection } from "@open-pioneer/react-utils";
+import { ToolButton } from "@open-pioneer/map-ui-components";
+import { ScaleViewer } from "@open-pioneer/scale-viewer";
+import { MAP_ID } from "./services";
+import React, { useEffect, useId, useState } from "react";
+import { Measurement } from "@open-pioneer/measurement";
+import { PiRulerLight } from "react-icons/pi";
 import VectorSource from "ol/source/Vector";
 import VectorLayer from "ol/layer/Vector.js";
-import GeoJSON from 'ol/format/GeoJSON';
-import Style from 'ol/style/Style';
-import Fill from 'ol/style/Fill';
-import Stroke from 'ol/style/Stroke';
-import CircleStyle from 'ol/style/Circle';
-import {transform} from 'ol/proj';
-import {Image} from "@chakra-ui/react";
-import Feature from 'ol/Feature.js';
-import LineString from 'ol/geom/LineString.js';
+import GeoJSON from "ol/format/GeoJSON";
+import Style from "ol/style/Style";
+import Fill from "ol/style/Fill";
+import Stroke from "ol/style/Stroke";
+import CircleStyle from "ol/style/Circle";
+import { transform } from "ol/proj";
+import { Image } from "@chakra-ui/react";
+import Feature from "ol/Feature.js";
+import LineString from "ol/geom/LineString.js";
 import Select from "react-select";
-import {Point} from "ol/geom";
-import {createEmpty, extend} from 'ol/extent';
+import { Point } from "ol/geom";
+import { createEmpty, extend } from "ol/extent";
 
-
+/**
+ * Main component for the map application. It manages state for:
+ *  - start/destination addresses
+ *  - route calculation
+ *  - route rendering
+ *  - safety/time ratings
+ *  - markers and layers
+ *
+ * @returns {JSX.Element} The MapApp component.
+ */
 export function MapApp() {
-
     const intl = useIntl();
     const measurementTitleId = useId();
 
-    const [measurementIsActive, setMeasurementIsActive] = useState<boolean>(false);
-    const [startAddress, setStartAddress] = useState<string>('');
-    const [startId, setStartId] = useState<string>('');
-    const [startCoordinates, setStartCoordinates] = useState<number[]>([]);
-    const [destinationAddress, setDestinationAddress] = useState<string>('');
-    const [endId, setEndId] = useState<string>('');
-    const [endCoordinates, setEndCoordinates] = useState<number[]>([]);
+    // States
+    const [measurementIsActive, setMeasurementIsActive] = useState(false);
+    const [startAddress, setStartAddress] = useState("");
+    const [startId, setStartId] = useState("");
+    const [startCoordinates, setStartCoordinates] = useState([]);
+    const [destinationAddress, setDestinationAddress] = useState("");
+    const [endId, setEndId] = useState("");
+    const [endCoordinates, setEndCoordinates] = useState([]);
     const [addressSuggestions, setAddressSuggestions] = useState([]);
     const [coordinatesMap, setCoordinatesMap] = useState({});
     const [filteredDestinations, setFilteredDestinations] = useState([]);
     const [addressToAreaMapping, setAddressToAreaMapping] = useState({});
-    const [sliderValue, setSliderValue] = useState<number>(1);
-    const [safetyRating, setSafetyRating] = useState<string>('');
-    const [timeEfficiencyRating, setTimeEfficiencyRating] = useState<string>('');
+    const [sliderValue, setSliderValue] = useState(1);
+    const [safetyRating, setSafetyRating] = useState("");
+    const [timeEfficiencyRating, setTimeEfficiencyRating] = useState("");
     const [nearestNodeMapping, setNearestNodeMapping] = useState({});
     const [isSwitchEnabled, setIsSwitchEnabled] = useState(false);
     const [isSwitchChecked, setIsSwitchChecked] = useState(false);
-    const [mapGraph, setMapGraph] = useState<Map<string, any>>(new Map());
-
+    const [mapGraph, setMapGraph] = useState(new Map());
 
     const sliderLabels = ["Safest", "Balanced", "Fastest"];
 
-    const resetInputs = () => {
+    const { map } = useMapModel(MAP_ID);
+
+    // --------------------------------------
+    //  General UI and State Management
+    // --------------------------------------
+
+    /**
+     * Resets all user inputs and route displays on the map.
+     */
+    function resetInputs() {
         setStartId("");
         setStartAddress("");
         setStartCoordinates([]);
@@ -76,8 +94,8 @@ export function MapApp() {
         setDestinationAddress("");
         setEndCoordinates([]);
         setSliderValue(0);
+
         if (isSwitchEnabled) {
-            // Wenn deaktiviert, Switch zurücksetzen
             setIsSwitchChecked(false);
         }
         setIsSwitchEnabled((prev) => !prev);
@@ -87,262 +105,213 @@ export function MapApp() {
         if (map?.olMap) {
             const layers = map.olMap.getLayers().getArray();
 
-            // Entferne alle Marker
-            const markerLayer = layers.find(layer => layer.get('id') === "markerLayer");
+            // Remove all markers
+            const markerLayer = layers.find((layer) => layer.get("id") === "markerLayer");
             if (markerLayer) {
                 const source = markerLayer.getSource();
-                source.clear(); // Entfernt alle Features aus dem Marker-Layer
+                source.clear();
             }
 
-            // Entferne alle Linien
-            const routeLayer = layers.find(layer => layer.get('id') === "addressToRouteLayer");
+            // Remove address-to-route lines
+            const routeLayer = layers.find((layer) => layer.get("id") === "addressToRouteLayer");
             if (routeLayer) {
                 const source = routeLayer.getSource();
-                source.clear(); // Entfernt alle Features aus dem Linien-Layer
+                source.clear();
             }
-            
-            // Entferne route
-            const targetLayer = layers.find(layer => layer.get('id') === "routeLayer");
+
+            // Remove final route lines
+            const targetLayer = layers.find((layer) => layer.get("id") === "routeLayer");
             if (targetLayer) {
                 const source = targetLayer.getSource();
                 source.clear();
             }
         }
-        
-    };
+    }
 
+    /**
+     * Toggles the measurement tool visibility on the map.
+     */
     function toggleMeasurement() {
         setMeasurementIsActive(!measurementIsActive);
-    };
+    }
 
+    // --------------------------------------
+    //  Map and Layer Initialization
+    // --------------------------------------
 
-    const {map} = useMapModel(MAP_ID);
-
+    /**
+     * Adds and configures layers on initial load, including:
+     *  - plannedAreasLayer
+     *  - addressLayer
+     *  - streetDataLayer
+     */
     useEffect(() => {
-        // Set Defaultvalue Scalebar to Safe
-        const initializeDefaults = () => {
-            setSliderValue(0); // Setzt den Slider auf den mittleren Wert
-        };
-
+        // Set the default slider to 0 (which is 'Safest').
+        function initializeDefaults() {
+            setSliderValue(0);
+        }
         initializeDefaults();
 
         if (map?.layers) {
-            // Setze maximalen Zoom
             map.olMap.getView().setMaxZoom(19);
 
+            // Route layer for the final path
             const routeVectorLayer = new VectorLayer({
                 source: new VectorSource(),
-                style: (feature) => {
-                    return isSwitchChecked ? styleByCategory(feature) : styleDefaultBlue(feature);
-                },
+                style: (feature) =>
+                    isSwitchChecked ? styleByCategory(feature) : styleDefaultBlue(feature),
             });
-            routeVectorLayer.set('id', 'routeLayer');
+            routeVectorLayer.set("id", "routeLayer");
             map.olMap.addLayer(routeVectorLayer);
 
-
             // Add planned Areas Layer
-            const plannedAreasVectorSource = new VectorSource({
-                url: './data/plannedAreas.geojson', // Pfad zu deinem GeoJSON
-                format: new GeoJSON({
-                    dataProjection: 'EPSG:3857',
-                    featureProjection: 'EPSG:3857'
-                })
-            });
+            const layers = map.olMap.getLayers().getArray();
+            let plannedAreasLayer = layers.find(layer => layer.get('id') === "plannedAreasLayer");
 
-            // Layer für GeoJSON
-            const plannedAreasLayer = new VectorLayer({
-                source: plannedAreasVectorSource,
-                style: new Style({
-                    fill: new Fill({
-                        color: 'rgba(55, 67, 61, 0.4)'
+            if (!plannedAreasLayer) {
+                const plannedAreasVectorSource = new VectorSource({
+                    url: './data/plannedAreas.geojson',
+                    format: new GeoJSON({
+                        dataProjection: 'EPSG:3857',
+                        featureProjection: 'EPSG:3857'
                     }),
-                    image: new CircleStyle({
-                        radius: 6,
-                        fill: new Fill({
-                            color: '#ffcc33'
-                        })
-                    })
+                });
+
+                plannedAreasLayer = new VectorLayer({
+                    source: plannedAreasVectorSource,
+                    visible: true,
+                });
+
+                plannedAreasLayer.set('id', 'plannedAreasLayer');
+                map.olMap.addLayer(plannedAreasLayer);
+            }
+
+            // Always apply the correct style
+            plannedAreasLayer.setStyle(new Style({
+                fill: new Fill({
+                    color: 'rgba(75, 87, 81, 0.3)', // Semi-transparent gray
                 }),
-                visible: true
-            });
+                stroke: new Stroke({
+                    color: '#000000',
+                    width: 1,
+                }),
+            }))
 
-            // GeoJSON-Layer zur Karte hinzufügen
-            map.olMap.addLayer(plannedAreasLayer);
-
-            // Add address Layer
+            // Address layer
             const addressVectorSource = new VectorSource({
-                url: './data/matching_hsnr_features_with_address.geojson',
+                url: "./data/matching_hsnr_features_with_address.geojson",
                 format: new GeoJSON({
-                    dataProjection: 'EPSG:3857',
-                    featureProjection: 'EPSG:3857'
-                })
+                    dataProjection: "EPSG:3857",
+                    featureProjection: "EPSG:3857",
+                }),
             });
 
-            // Layer für GeoJSON
             const addressLayer = new VectorLayer({
                 source: addressVectorSource,
                 style: new Style({
                     image: new CircleStyle({
                         radius: 1,
                         fill: new Fill({
-                            color: 'rgba(255, 255, 255, 0.6)'
-                        })
-                    })
+                            color: "rgba(255, 255, 255, 0.6)",
+                        }),
+                    }),
                 }),
-                visible: false
+                visible: false,
             });
-
-            // GeoJSON-Layer zur Karte hinzufügen
             map.olMap.addLayer(addressLayer);
-            
 
-            // Add Street data layer
-            const vectorSource2 = new VectorSource({
-                url: './data/exportedGeojsonRouting (2).geojson',
+            // Street data layer
+            const streetDataSource = new VectorSource({
+                url: "./data/exportedGeojsonRouting (2).geojson",
                 format: new GeoJSON({
-                    dataProjection: 'EPSG:3857',
-                    featureProjection: 'EPSG:3857'
-                })
+                    dataProjection: "EPSG:3857",
+                    featureProjection: "EPSG:3857",
+                }),
             });
 
             const streetDataLayer = new VectorLayer({
-                source: vectorSource2,
+                source: streetDataSource,
                 style: styleByCategory,
-                visible: false
+                visible: false,
             });
-            streetDataLayer.set('id', 'streetDataLayer');
-
+            streetDataLayer.set("id", "streetDataLayer");
             map.olMap.addLayer(streetDataLayer);
 
-            /*
-            Dieser Code wird benötigt um category hinzuzufügen. wird in der fertigen applikation aber nicht benötigt.
-            */
-            /*
-             // Sobald die Daten ready sind ...
-             vectorSource2.once('change', function () {
-       
-       
-               if (vectorSource2.getState() === 'ready') {
-                 const features = vectorSource2.getFeatures();
-                 console.log(features)
-       
-                 const relevantProps = [
-                   'bicycle',
-                   'cycleway',
-                   'cycleway_left',
-                   'cycleway_right',
-                   'bicycle_road',
-                   'cycleway_right_bicycle',
-                   'cycleway_left_bicycle'
-                 ];
-       
-                 // Kategorien
-                 const withoutCycleHighwayGroup = [];
-                 const withoutCycleOther = [];
-                 const cyclePropsYesDesignated = [];
-                 const cyclePropsOther = [];
-       
-                 features.forEach((feature) => {
-                   const properties = feature.getProperties();
-                   console.log(properties)
-       
-                   // Prüfen, ob eine relevante Rad-Property vorhanden ist
-                   const hasCycleProp = relevantProps.some((prop) => {
-                     return properties[prop] != null && properties[prop] !== '';
-                   });
-       
-                   if (!hasCycleProp) {
-                     // Keine Radinfrastruktur, weiter unterteilen nach highway-Werten
-                     const highway = properties.highway;
-                     if (
-                       highway === 'residential' ||
-                       highway === 'living_street' ||
-                       highway === 'bridleway' ||
-                       highway === 'track'
-                     ) {
-                       feature.set('category_number', 2);
-                       withoutCycleHighwayGroup.push(feature);
-                     } else {
-                       feature.set('category_number', 1);
-                       withoutCycleOther.push(feature);
-                     }
-                   } else {
-                     // Hat Radinfrastruktur, nun verfeinern:
-                     const bicycleValue = properties.bicycle;
-                     const bicycleRoadValue = properties.bicycle_road;
-       
-                     const isYesOrDesignated =
-                       bicycleValue === 'yes' ||
-                       bicycleValue === 'designated' ||
-                       bicycleRoadValue === 'yes' ||
-                       bicycleRoadValue === 'designated';
-       
-                     if (isYesOrDesignated) {
-                       feature.set('category_number', 4);
-                       cyclePropsYesDesignated.push(feature);
-                     } else {
-                       feature.set('category_number', 3);
-                       cyclePropsOther.push(feature);
-                     }
-                   }
-       
-                   // Style anwenden
-                   streetDataLayer.setStyle(styleByCategory);
-                 });
-       
-                 const geoJSONFormat = new GeoJSON();
-       
-                 // Features als GeoJSON exportieren
-                 const geojsonStr = geoJSONFormat.writeFeatures(features);
-                 const blob = new Blob([geojsonStr], { type: 'application/json' });
-       
-                 // URL für den Blob erstellen
-                 const url = URL.createObjectURL(blob);
-       
-                 // Temporären Link erstellen
-                 const link = document.createElement('a');
-                 link.href = url;
-                 link.download = 'exportedGeojsonRouting.geojson';
-       
-                 // Link zum Dokument hinzufügen und Klick simulieren
-                 document.body.appendChild(link);
-                 link.click();
-       
-                 // Link wieder entfernen
-                 document.body.removeChild(link);
-       
-                 // URL freigeben
-                 URL.revokeObjectURL(url);
-               }
-             });
-             */
-        } else {
-            return;
+            // -----------------------------
+            // Uncommented approach to fill category (not needed in final app)
+            // streetDataSource.once("change", function () {
+            //   if (streetDataSource.getState() === "ready") {
+            //     // ...
+            //   }
+            // });
+            // -----------------------------
         }
-    }, [map]);
+    }, [map, isSwitchChecked]);
 
+    /**
+     * Updates the style of the route layer when the switch changes.
+     */
     useEffect(() => {
         if (map?.olMap) {
             const layers = map.olMap.getLayers().getArray();
-            const routeLayer = layers.find(layer => layer.get('id') === "routeLayer");
+            const routeLayer = layers.find((layer) => layer.get("id") === "routeLayer");
             if (routeLayer) {
-                routeLayer.setStyle((feature) => {
-                    return isSwitchChecked ? styleByCategory(feature) : styleDefaultBlue(feature);
-                });
-               
+                routeLayer.setStyle((feature) =>
+                    isSwitchChecked ? styleByCategory(feature) : styleDefaultBlue(feature)
+                );
             }
         }
     }, [isSwitchChecked, map]);
 
+    // --------------------------------------
+    //  Address Data and Filtering
+    // --------------------------------------
+
+    /**
+     * Loads the address data from CSV and stores it in several mappings:
+     *  - address -> area
+     *  - address -> nearest node
+     *  - address -> coordinates
+     *  - suggestions array for the UI
+     */
+    function fillAdressInput() {
+        fetch("./data/Matched_Addresses_in_Planned_Areas.csv")
+            .then((response) => response.text())
+            .then((data) => {
+                const rows = data.split("\n").slice(1); // skip header
+                const mapping = {};
+                const nearestNodeMap = {};
+                const coordsMap = {};
+                const addresses = [];
+
+                rows.forEach((row) => {
+                    const [address, plannedAreaId, nearest_node, coordinates] = row.split(";");
+                    if (address && plannedAreaId) {
+                        const trimmedAddress = address.trim();
+                        mapping[trimmedAddress] = plannedAreaId.trim();
+
+                        if (nearest_node) {
+                            nearestNodeMap[trimmedAddress] = nearest_node.trim();
+                        }
+                        if (coordinates) {
+                            coordsMap[trimmedAddress] = coordinates.trim();
+                        }
+                        addresses.push(trimmedAddress);
+                    }
+                });
+
+                setAddressToAreaMapping(mapping);
+                setNearestNodeMapping(nearestNodeMap);
+                setAddressSuggestions(addresses);
+                setCoordinatesMap(coordsMap);
+            })
+            .catch((error) => console.error("Error loading CSV data:", error));
+    }
+
+    /**
+     * Filters destination addresses based on the selected start address's area.
+     */
     useEffect(() => {
-        // Fetch addresses and their planned_area_id from the CSV file
-        fillAdressInput();
-
-
-    }, []);
-
-    useEffect(() => {
-        // Filter destination addresses based on the area of the selected start address
         if (startAddress) {
             const selectedAreaId = addressToAreaMapping[startAddress];
             const filtered = Object.keys(addressToAreaMapping).filter(
@@ -354,163 +323,93 @@ export function MapApp() {
         }
     }, [startAddress, addressToAreaMapping]);
 
-    function fillAdressInput() {
-        fetch("./data/Matched_Addresses_in_Planned_Areas.csv")
-            .then((response) => response.text())
-            .then((data) => {
-                const rows = data.split("\n").slice(1); // Header überspringen
-                const mapping = {};
-                const nearestNodeMap = {};
-                const coordinatesMap = {};
-                const addresses = [];
+    /**
+     * Initial data load for addresses from CSV.
+     */
+    useEffect(() => {
+        fillAdressInput();
+    }, []);
 
-                rows.forEach((row) => {
-                    const [address, plannedAreaId, nearest_node, coordinates] = row.split(";");
+    // --------------------------------------
+    //  Routing Calculation
+    // --------------------------------------
 
-                    if (address && plannedAreaId) {
-                        const trimmedAddress = address.trim();
-
-                        // Mapping der Daten
-                        mapping[trimmedAddress] = plannedAreaId.trim();
-
-                        if (nearest_node) {
-                            nearestNodeMap[trimmedAddress] = nearest_node.trim();
-                        }
-
-                        if (coordinates) {
-                            coordinatesMap[trimmedAddress] = coordinates.trim();
-                        }
-
-                        addresses.push(trimmedAddress);
-                    }
-                });
-
-                // Setze State-Werte
-                setAddressToAreaMapping(mapping);
-                setNearestNodeMapping(nearestNodeMap);
-                setAddressSuggestions(addresses);
-                setCoordinatesMap(coordinatesMap); // Speichere die Koordinaten für spätere Verwendung
-                
-                
-            })
-            .catch((error) => console.error("Error loading CSV data:", error));
-    }
-
-
-
-    function 
-    getWeightVector(sliderValue: number) {
-        switch(sliderValue){
-            case 0: 
+    /**
+     * Returns the weight vector for cost calculation based on the current slider value.
+     * @param {number} sliderVal - Slider value in range [0, 2].
+     * @returns {number[]} The weight vector (length 3).
+     */
+    function getWeightVector(sliderVal) {
+        switch (sliderVal) {
+            case 0:
                 return [1.5, 2, 2.5];
             case 1:
                 return [1.2, 1.5, 2];
             case 2:
                 return [1, 1, 1];
+            default:
+                return [1, 1, 1];
         }
     }
 
-    function zoomToFeatures() {
-        const layers = map.olMap.getLayers().getArray();
-        const targetLayer = layers.find(layer => layer.get('id') === "routeLayer");
-        if (targetLayer) {
-            // Hole die Quelle der Layer
-            const source = targetLayer.getSource();
-            const allFeatures = source.getFeatures();
-
-            // Filtere Features, die das Attribut 'route' mit dem Wert true haben
-            const routeFeatures = allFeatures.filter(feature => feature.get('route') === 'true');
-
-            if (routeFeatures.length > 0) {
-                // Erstelle eine Bounding-Box aus den gefilterten Features
-                const extent = createEmpty();
-                routeFeatures.forEach(feature => {
-                    extend(extent, feature.getGeometry().getExtent());
-                });
-
-                // Passe die Karte an die Bounding-Box an
-                map.olMap.getView().fit(extent, { padding: [50, 50, 50, 50], duration: 1000 });
-                console.log(`Gefittet auf ${routeFeatures.length} Features mit 'route = true'.`);
-            } else {
-                console.log('Keine Features mit dem Attribut "route = true" gefunden.');
-            }
-        } else {
-            console.log('Layer mit der ID "routeLayer" nicht gefunden.');
-        }
-        
-    }
-
+    /**
+     * Main function to calculate and display the route between startId and endId.
+     */
     function calculateRoute() {
         setIsSwitchEnabled(true);
-        // Berechne den Abstand zwischen startId und endId
-        let distance = calculateDistance(startId, endId);
-        console.log(`Distance between startId and endId: ${distance} meters`);
-        // Distance für abort berechnen
-        distance = distance * 2;
-        console.log('Abort Distance: ', distance)
-        
-        
-        const weightVector = getWeightVector(sliderValue);
-        
 
-        fetch('./data/graph (40).json')
+        // Calculate approximate distance (in meters) between the addresses.
+        let distance = calculateDistance(startId, endId);
+        // Increase "abort distance" to accommodate potential route expansions.
+        distance *= 2;
+
+        const weightVector = getWeightVector(sliderValue);
+
+        fetch("./data/graph (40).json")
             .then((response) => {
                 if (!response.ok) {
-                    throw new Error("Fehler beim Laden der Datei");
+                    throw new Error("Error loading the file");
                 }
                 return response.json();
             })
             .then((graphObject) => {
-                
-
-                const calculatedGraph = new Map(Object.entries(graphObject)); // JSON in Map umwandeln
-                setMapGraph(calculatedGraph)
-                console.log("Graph erfolgreich geladen:", calculatedGraph);
-
-                // Nutze den geladenen Graph
+                const calculatedGraph = new Map(Object.entries(graphObject));
+                setMapGraph(calculatedGraph);
 
                 const paretoFront = new Map();
-
-                // Initialisiere Startknoten mit Vektor [0,0,...,0]
                 paretoFront.set(startId, [
                     {
                         costVector: new Array(5).fill(0),
-                        predecessor: null
-                    }
+                        predecessor: null,
+                    },
                 ]);
 
-                // Warteschlange für Knoten mit offenen Zuständen
                 const queue = [];
-                queue.push({node: startId, costVector: paretoFront.get(startId)[0].costVector});
+                queue.push({ node: startId, costVector: paretoFront.get(startId)[0].costVector });
 
-                // Hauptschleife
+                // Pareto search
                 while (queue.length > 0) {
                     const current = queue.shift();
                     const { node: currentNode, costVector: currentCostVec } = current;
 
-                    // Ignoriere den Pfad, wenn er die maximale Distanz überschreitet
+                    // Skip if we exceed distance threshold
                     if (currentCostVec[4] > distance) {
-                        continue; // Überspringe diesen Pfad
+                        continue;
                     }
 
-                    // Betrachte alle Nachbarn von currentNode
                     const edges = calculatedGraph.get(currentNode) || [];
                     edges.forEach((edge) => {
                         const nextNode = edge.node;
-
-                        // Berechne neuen Kostenvektor für nextNode
                         const edgeCostVec = getUnweightedCostVector(edge.length, edge.category, weightVector);
                         const newCostVec = vectorAdd(currentCostVec, edgeCostVec);
 
-                        // Falls keine Pareto-Front für nextNode existiert, initialisiere sie
                         if (!paretoFront.has(nextNode)) {
                             paretoFront.set(nextNode, []);
                         }
                         const currentPareto = paretoFront.get(nextNode);
 
-                        // Prüfe Pareto-Dominanz
                         let dominatedByExisting = false;
-                        let dominatingIndices = [];
+                        const dominatingIndices = [];
 
                         for (let i = 0; i < currentPareto.length; i++) {
                             const existingVec = currentPareto[i].costVector;
@@ -524,75 +423,71 @@ export function MapApp() {
                         }
 
                         if (!dominatedByExisting) {
-                            // Lösche alte Vektoren, die von newCostVec dominiert werden
+                            // Remove vectors dominated by the new one
                             for (let i = dominatingIndices.length - 1; i >= 0; i--) {
                                 currentPareto.splice(dominatingIndices[i], 1);
                             }
-
-                            // Füge newCostVec zur Pareto-Front hinzu
                             currentPareto.push({
                                 costVector: newCostVec,
                                 predecessor: currentNode,
                             });
-
-                            // Füge nextNode zur Warteschlange hinzu
                             queue.push({ node: nextNode, costVector: newCostVec });
                         }
                     });
                 }
 
-                // Nach der Schleife: Wähle den besten Weg aus der Pareto-Front des Zielknotens
                 if (!paretoFront.has(endId)) {
-                    console.error("Kein gültiger Pfad zum Zielknoten gefunden.");
+                    console.error("No valid route to the destination found.");
                 } else {
                     const endPareto = paretoFront.get(endId);
-
-                    // Suche den Kostenvektor mit dem kleinsten costVector[0]
                     const bestPath = endPareto.reduce((best, entry) => {
                         return entry.costVector[0] < best.costVector[0] ? entry : best;
                     }, endPareto[0]);
 
-                    console.log("Bester Pfad mit minimalem costVector[0]:", bestPath);
-
-                    // Rekonstruiere und visualisiere den besten Pfad
+                    // Reconstruct and highlight
                     const pathNodes = reconstructPath(paretoFront, startId, endId, calculatedGraph);
-                    highlightPath([pathNodes.find((path) => path.costVector === bestPath.costVector)], calculatedGraph);
+                    highlightPath(
+                        [pathNodes.find((p) => p.costVector === bestPath.costVector)],
+                        calculatedGraph
+                    );
                     zoomToFeatures();
                 }
-
-
-                // Rückgabe: Die Pareto-Front aller Knoten
-                //mit paretoFront.get(endId) kriegt man das ergebnis für den zielknoten
-                //console.log(paretoFront.get(endId))
             })
-            .catch((error) => console.error("Fehler:", error));
-        // Pareto-Front: Map<Knoten, [ { costVector: number[], predecessor: string } ] >
-
+            .catch((error) => console.error("Error:", error));
     }
 
-
-    // Hilfsfunktion für die Routenberechnung: Für jede Kante wird der Kostenvektor berechnet 
-    // ! ACHTUNG ! Bisher ist hier noch keine Gewichtung vorhanden 
+    /**
+     * Computes an unweighted cost vector for a given edge.
+     * @param {number} length - Edge length in meters.
+     * @param {number} category - Category number (1 to 4).
+     * @param {number[]} weights - Weight vector based on user preference.
+     * @returns {number[]} Cost vector of length 5.
+     */
     function getUnweightedCostVector(length, category, weights) {
         const costVector = new Array(5).fill(0);
         costVector[4] = length;
+
         switch (category) {
-            case 1: // Rot
+            case 1:
+                // Red
                 costVector[3] = length;
                 costVector[2] = costVector[3] * weights[2];
                 costVector[1] = costVector[2] * weights[1];
                 costVector[0] = costVector[1] * weights[0];
                 break;
-            case 2: // Orange
+            case 2:
+                // Orange
                 costVector[2] = length;
                 costVector[1] = costVector[2] * weights[1];
                 costVector[0] = costVector[1] * weights[0];
                 break;
-            case 3: // Hellgrün
+            case 3:
+                // Light green
                 costVector[1] = length;
                 costVector[0] = costVector[1] * weights[0];
                 break;
-            case 4: // Grün
+            case 4:
+                // Green
                 costVector[0] = length;
                 break;
             default:
@@ -601,11 +496,14 @@ export function MapApp() {
         return costVector;
     }
 
-
-    // Hilfsfunktion die determiniert, ob ein Kostenvektor einen anderen dominiert.
+    /**
+     * Checks if cost vector A dominates cost vector B in a Pareto sense.
+     * @param {number[]} vecA - Cost vector A.
+     * @param {number[]} vecB - Cost vector B.
+     * @returns {boolean} True if A dominates B, otherwise false.
+     */
     function dominates(vecA, vecB) {
         let strictlyBetter = false;
-
         for (let i = 0; i < vecA.length; i++) {
             if (vecA[i] > vecB[i]) {
                 return false;
@@ -614,131 +512,48 @@ export function MapApp() {
                 strictlyBetter = true;
             }
         }
-
         return strictlyBetter;
     }
 
+    /**
+     * Adds two cost vectors element-wise.
+     * @param {number[]} vecA - First cost vector.
+     * @param {number[]} vecB - Second cost vector.
+     * @returns {number[]} Summed cost vector.
+     */
     function vectorAdd(vecA, vecB) {
         return vecA.map((val, idx) => val + vecB[idx]);
     }
 
-
-    function buildGraphFromGeoJSON(geojson) {
-        const graph = new Map();
-
-        geojson.features.forEach((feature) => {
-            const geometry = feature.geometry;
-            const properties = feature.properties;
-
-            if (geometry.type === "LineString") {
-                const coordinates = geometry.coordinates;
-                const length = properties.length;
-                const category = properties.category_number;
-
-                // Gehe alle Segmente im LineString durch
-                for (let i = 0; i < coordinates.length - 1; i++) {
-                    const fromCoord = coordToId(coordinates[i]); // Startpunkt
-                    const toCoord = coordToId(coordinates[i + 1]); // Endpunkt
-
-                    // Kante vom Startpunkt zum Endpunkt hinzufügen
-                    if (!graph.has(fromCoord)) {
-                        graph.set(fromCoord, []);
-                    }
-                    graph.get(fromCoord).push({node: toCoord, length, category});
-
-                    // Kante vom Endpunkt zurück zum Startpunkt hinzufügen (bidirektional)
-                    if (!graph.has(toCoord)) {
-                        graph.set(toCoord, []);
-                    }
-                    graph.get(toCoord).push({node: fromCoord, length, category});
-                }
-            }
-        });
-
-        return graph;
-    }
-
-    // Helper: Konvertiert Koordinaten in Strings
-    function coordToId(coord) {
-        return coord.join(",");
-    }
-
-    // Helper-Funktion: Konvertiert Koordinatenpaar in einen String (z. B. "13.4050,52.5200")
-    function coordToId(coord) {
-        return coord.join(",");
-    }
-
-
-    /* 
-    Dieser Code wird benötigt um den Graphen zu erstellen. IN der normalen Applikation jedoch nicht notwendig, weil dieser dann schon erstellt wurde
-    fetch('./data/exportedGeojsonRouting (2).geojson') // Relativer Pfad zur Datei
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('Fehler beim Laden der GeoJSON-Datei');
-        }
-        return response.json();
-      })
-      .then((geojsonData) => {
-  
-        
-        // Hier kannst du mit den GeoJSON-Daten arbeiten
-        const graph = buildGraphFromGeoJSON(geojsonData);
-       
-        const graphObject = Object.fromEntries(graph); // Konvertiere Map in ein einfaches Objekt
-        
-  
-        
-        const graphJSON = JSON.stringify(graphObject, null, 2); // Formatiere als JSON
-       
-  
-        // JSON-Datei erstellen und Download auslösen
-        
-        const blob = new Blob([graphJSON], { type: 'application/json' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = 'graph.json';
-        link.click();
-    
-        // Graph-Statistik ausgeben
-        
-        let edgeCount = 0;
-        graph.forEach((edges) => {
-          edgeCount += edges.length;
-        });
-          
-  
-      })
-      
-      */
-
-
-    // Hier fehlt noch eine Funktion mit der wir den pareto pfad zurückverfolgen können um die routen zu finden.
-
-    function reconstructPath(paretoFront, startId, endId, graph) {
+    /**
+     * Reconstructs the paths from the Pareto front for a given start and end node.
+     * @param {Map} paretoFront - Pareto front map.
+     * @param {string} start - Start node ID.
+     * @param {string} end - End node ID.
+     * @param {Map<string, any>} graph - The routing graph as a map.
+     * @returns {object[]} Array of path objects containing { path: string[], costVector: number[] }.
+     */
+    function reconstructPath(paretoFront, start, end, graph) {
         const results = [];
-        const endPareto = paretoFront.get(endId);
-
+        const endPareto = paretoFront.get(end);
         if (!endPareto) {
-            console.error("Kein Pfad zum Zielknoten gefunden.");
+            console.error("No path to the destination node found.");
             return results;
         }
 
-        // Für jeden nicht-dominierten Zustand am Zielknoten den Pfad rekonstruieren
         endPareto.forEach((entry) => {
             const path = [];
             let currentEntry = entry;
-            let currentNode = endId;
+            let currentNode = end;
 
-            // Rückwärts den Pfad entlanggehen
             while (currentEntry) {
-                path.push(currentNode); // Füge aktuellen Knoten zum Pfad hinzu
-                currentNode = currentEntry.predecessor; // Gehe zum Vorgängerknoten
-
-                if (!currentNode) break; // Wenn kein Vorgänger mehr existiert, sind wir am Start
+                path.push(currentNode);
+                currentNode = currentEntry.predecessor;
+                if (!currentNode) break;
 
                 const predecessorPareto = paretoFront.get(currentNode);
                 if (!predecessorPareto) {
-                    console.error("Kein Pareto-Eintrag für den Vorgängerknoten gefunden:", currentNode);
+                    console.error("No Pareto entry for predecessor node:", currentNode);
                     break;
                 }
 
@@ -750,338 +565,407 @@ export function MapApp() {
                 );
             }
 
-            // Pfad umkehren, da er rückwärts aufgebaut wurde
             results.push({
                 path: path.reverse(),
                 costVector: entry.costVector,
             });
         });
 
-        console.log(results)
         return results;
     }
 
+    /**
+     * Checks if two arrays are equal in length and elements.
+     * @param {number[]} arr1 - First array.
+     * @param {number[]} arr2 - Second array.
+     * @returns {boolean} True if arrays are equal, otherwise false.
+     */
     function arraysEqual(arr1, arr2) {
         if (arr1.length !== arr2.length) return false;
         return arr1.every((val, idx) => val === arr2[idx]);
     }
 
-
-    // Hilfsfunktion: Kostenvektor für eine Kante berechnen
+    /**
+     * Retrieves the cost vector for a given edge in the graph.
+     * @param {string} fromNode - The origin node ID.
+     * @param {string} toNode - The destination node ID.
+     * @param {Map<string, any>} graph - The routing graph.
+     * @returns {number[] | null} The cost vector or null if not found.
+     */
     function getEdgeCost(fromNode, toNode, graph) {
         const edges = graph.get(fromNode) || [];
         const edge = edges.find((e) => e.node === toNode);
-        return edge ? getUnweightedCostVector(edge.length, edge.category, getWeightVector(sliderValue)) : null;
+        return edge
+            ? getUnweightedCostVector(edge.length, edge.category, getWeightVector(sliderValue))
+            : null;
     }
 
-    function highlightPath(paths, graph: Map<string, any>) {
-        // 1) Route-Layer und Source ermitteln
+    /**
+     * Highlights the chosen path(s) on the map.
+     * Draws line features for the route and lines between address points and route start/end.
+     * Also updates safety/time rating states.
+     *
+     * @param {object[]} paths - Array of path objects from reconstructPath().
+     * @param {Map<string, any>} graph - The routing graph as a map.
+     */
+    function highlightPath(paths, graph) {
         const layers = map.olMap.getLayers().getArray();
-        const targetLayer = layers.find(layer => layer.get('id') === "routeLayer");
+        const targetLayer = layers.find((layer) => layer.get("id") === "routeLayer");
 
         if (!targetLayer) {
-            console.error(`Layer mit ID "routeLayer" nicht gefunden.`);
+            console.error('Layer with ID "routeLayer" not found.');
             return;
         }
 
         const source = targetLayer.getSource();
-        // Alle alten Routen-Features entfernen
         source.clear();
 
-        // 2) Für jeden Pfad in paths
         paths.forEach((singlePath) => {
-            // singlePath.path = Array der Knoten (z.B. ["13.41,52.52", "13.42,52.53", ...])
-            const routeSegments = []; // Array zum Sammeln der Segment-Features
-
+            const routeSegments = [];
             for (let i = 0; i < singlePath.path.length - 1; i++) {
                 const fromNode = singlePath.path[i];
                 const toNode = singlePath.path[i + 1];
-
-                // Suche die Edge im Graph
-                const edges = graph.get(fromNode); // <-- Dein Graph in einer Variable "mapGraph"
+                const edges = graph.get(fromNode);
                 if (!edges) continue;
 
-                // Gesuchte Kante
-                const edge = edges.find(e => e.node === toNode);
+                const edge = edges.find((e) => e.node === toNode);
                 if (!edge) continue;
 
-                // Kategorie aus der Kante holen
-                const cat = edge.category; // 1, 2, 3, 4 ...
-
-                // Koordinaten als [lon, lat] aus fromNode und toNode
-                const fromCoord = fromNode.split(',').map(Number);
-                const toCoord = toNode.split(',').map(Number);
-
-                // OpenLayers-LineString erstellen
+                const cat = edge.category;
+                const fromCoord = fromNode.split(",").map(Number);
+                const toCoord = toNode.split(",").map(Number);
                 const lineSegment = new LineString([fromCoord, toCoord]);
-
-                // Neues Feature für das Segment
                 const segmentFeature = new Feature({
                     geometry: lineSegment,
                 });
-                // category_number setzen, damit styleByCategory() die Farbe wählen kann
-                segmentFeature.set('category_number', cat);
-                // Optional: Markiere dieses Feature als Teil der Route
-                segmentFeature.set('route', 'true');
 
+                segmentFeature.set("category_number", cat);
+                segmentFeature.set("route", "true");
                 routeSegments.push(segmentFeature);
             }
-
-            // 3) Features in die Source des Route-Layers hinzufügen
             source.addFeatures(routeSegments);
 
-            // add linestrings from addresses to route
+            // Lines from addresses to route start/end
             if (startId && startCoordinates && endId && endCoordinates) {
-                // StartId und EndId in Koordinaten umwandeln
                 const startIdCoordinates = startId.split(",").map(Number);
                 const endIdCoordinates = endId.split(",").map(Number);
-
-                // Erstelle die LineStrings
                 const startLineString = new LineString([startCoordinates, startIdCoordinates]);
                 const endLineString = new LineString([endCoordinates, endIdCoordinates]);
 
-                console.log("Start LineString:", startLineString);
-                console.log("End LineString:", endLineString);
-
-                // Erstelle Features
-                const startFeature = new Feature({
-                    geometry: startLineString,
-                });
-
-                const endFeature = new Feature({
-                    geometry: endLineString,
-                });
-
-                // Identifizieren des Layers
-                const layers = map.olMap.getLayers().getArray();
-                let addressToRouteLayer = layers.find(layer => layer.get('id') === "addressToRouteLayer");
-
-                // Falls der Layer nicht existiert, erstellen Sie ihn
+                let addressToRouteLayer = layers.find(
+                    (layer) => layer.get("id") === "addressToRouteLayer"
+                );
                 if (!addressToRouteLayer) {
                     addressToRouteLayer = new VectorLayer({
                         source: new VectorSource(),
                         style: new Style({
                             stroke: new Stroke({
-                                color: 'lightblue', // Farbe der Linien
-                                width: 6,           // Breite der Linien
-                                lineDash: [1, 10],  // Gepunktete Linie
+                                color: "lightblue",
+                                width: 6,
+                                lineDash: [1, 10],
                             }),
                         }),
                     });
-
-                    addressToRouteLayer.set('id', 'addressToRouteLayer');
+                    addressToRouteLayer.set("id", "addressToRouteLayer");
                     map.olMap.addLayer(addressToRouteLayer);
                 }
-
-                // Entferne alte Features
-                const source = addressToRouteLayer.getSource();
-                source.clear();
-
-                // Füge neue Features hinzu
-                source.addFeatures([startFeature, endFeature]);
+                const addressToRouteSource = addressToRouteLayer.getSource();
+                addressToRouteSource.clear();
+                addressToRouteSource.addFeatures([
+                    new Feature({ geometry: startLineString }),
+                    new Feature({ geometry: endLineString }),
+                ]);
             }
-            
-            // Sicherheits- und Zeitbewertung ausgeben
+
+            // Update Ratings
             const estimatedTime = calculateEstimatedTime(paths[0].costVector[4]);
-            setTimeEfficiencyRating(`${(paths[0].costVector[4] / 1000).toFixed(2)} km (~${estimatedTime} min)`);
-            
+            setTimeEfficiencyRating(
+                `${(paths[0].costVector[4] / 1000).toFixed(2)} km (~${estimatedTime} min)`
+            );
             setSafetyRating(`Safety Rating: ${calculateSafetyScore(paths[0].costVector).toFixed(1)}`);
         });
     }
 
-    function getSafetyRatingColor(safetyScore: number): string {
-        if (safetyScore >= 1.0 && safetyScore < 2.5) {
-            return 'lightgreen';
-        } else if (safetyScore >= 2.5 && safetyScore < 4.0) {
-            return '#f3db57';
-        } else if (safetyScore >= 4.0) {
-            return '#f66f57';
+    /**
+     * Zooms the map to display all the route features with `route = true`.
+     */
+    function zoomToFeatures() {
+        const layers = map.olMap.getLayers().getArray();
+        const targetLayer = layers.find((layer) => layer.get("id") === "routeLayer");
+
+        if (targetLayer) {
+            const source = targetLayer.getSource();
+            const allFeatures = source.getFeatures();
+            const routeFeatures = allFeatures.filter((feature) => feature.get("route") === "true");
+
+            if (routeFeatures.length > 0) {
+                const extent = createEmpty();
+                routeFeatures.forEach((feature) => {
+                    extend(extent, feature.getGeometry().getExtent());
+                });
+                map.olMap.getView().fit(extent, { padding: [50, 50, 50, 50], duration: 1000 });
+            }
         }
-        return 'white'; // Default color
     }
-    
+
+    // --------------------------------------
+    //  Utility Functions
+    // --------------------------------------
+
+    /**
+     * Calculates the distance in meters between two coordinate-string IDs.
+     * @param {string} startIdStr - "lon,lat" string of the start node.
+     * @param {string} endIdStr - "lon,lat" string of the end node.
+     * @returns {number} Distance in meters.
+     */
+    function calculateDistance(startIdStr, endIdStr) {
+        const [startLon, startLat] = transform(
+            [parseFloat(startIdStr.split(",")[0]), parseFloat(startIdStr.split(",")[1])],
+            "EPSG:3857",
+            "EPSG:4326"
+        );
+        const [endLon, endLat] = transform(
+            [parseFloat(endIdStr.split(",")[0]), parseFloat(endIdStr.split(",")[1])],
+            "EPSG:3857",
+            "EPSG:4326"
+        );
+
+        const R = 6371e3; // Earth's radius in meters
+        const φ1 = (startLat * Math.PI) / 180;
+        const φ2 = (endLat * Math.PI) / 180;
+        const Δφ = ((endLat - startLat) * Math.PI) / 180;
+        const Δλ = ((endLon - startLon) * Math.PI) / 180;
+
+        const a =
+            Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+            Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }
+
+    /**
+     * Estimates travel time on a bike at ~15 km/h.
+     * @param {number} distanceInMeters - Distance of the route.
+     * @returns {number} Estimated travel time in minutes.
+     */
+    function calculateEstimatedTime(distanceInMeters) {
+        const distanceInKm = distanceInMeters / 1000;
+        const averageSpeedKmH = 15;
+        const timeInHours = distanceInKm / averageSpeedKmH;
+        return Math.round(timeInHours * 60);
+    }
+
+    /**
+     * Computes a safety score (in the range [1.0 - 6.0]) based on the cost vector and user preference.
+     * @param {number[]} costVector - The final cost vector for the route.
+     * @returns {number} A floating-point safety score.
+     */
+    function calculateSafetyScore(costVector) {
+        const weightVector = getWeightVector(0);
+        let safetyScore = 0.0;
+        let calculatedDistance;
+
+        switch (sliderValue) {
+            case 0: // safest
+            case 1: // balanced
+            case 2: // fastest
+                calculatedDistance = calcBackWeights(costVector, weightVector, sliderValue);
+                safetyScore = calculatedDistance / costVector[4];
+                break;
+            default:
+                break;
+        }
+
+        // Normalize to [1.0 - 6.0]
+        safetyScore = 1.0 + ((safetyScore - 1.0) / (7.5 - 1.0)) * (6.0 - 1.0);
+        return safetyScore;
+    }
+
+    /**
+     * Converts the forward cost vector back to real distances in each category.
+     * Multiplies them by the relevant weight factors.
+     *
+     * @param {number[]} costVector - The final cost vector from the Pareto search.
+     * @param {number[]} weights - Weight vector from getWeightVector().
+     * @param {number} sliderVal - The current slider position.
+     * @returns {number} The total “re-summed” distance used for safety calculation.
+     */
+    function calcBackWeights(costVector, weights, sliderVal) {
+        const weightVector = getWeightVector(sliderVal);
+
+        const cat1 = costVector[3];
+        const cat2 = costVector[2] - cat1 * weightVector[2];
+        const cat3 = costVector[1] - cat2 * weightVector[1] - cat1 * weightVector[2] * weightVector[1];
+        const cat4 =
+            costVector[0] -
+            cat3 * weightVector[0] -
+            cat2 * weightVector[1] * weightVector[0] -
+            cat1 * weightVector[2] * weightVector[1] * weightVector[0];
+
+        return (
+            cat1 * weights[0] * weights[1] * weights[2] +
+            cat2 * weights[1] * weights[2] +
+            cat3 * weights[2] +
+            cat4
+        );
+    }
+
+    /**
+     * Chooses a background color for the safety rating input field.
+     * @param {number} safetyScore - Computed safety score.
+     * @returns {string} CSS color value.
+     */
+    function getSafetyRatingColor(safetyScore) {
+        if (safetyScore >= 1.0 && safetyScore < 2.5) {
+            return "lightgreen";
+        } else if (safetyScore >= 2.5 && safetyScore < 4.0) {
+            return "#f3db57";
+        } else if (safetyScore >= 4.0) {
+            return "#f66f57";
+        }
+        return "white";
+    }
+
+    /**
+     * Default style for the route if safety category is not displayed.
+     * @returns {Style} A Style object for the route.
+     */
     function styleDefaultBlue() {
         return new Style({
             stroke: new Stroke({
-                color: 'rgba(0, 0, 255, 0.8)', // Einheitliche blaue Farbe
+                color: "rgba(0, 0, 255, 0.8)",
                 width: 5,
             }),
         });
     }
+
+    /**
+     * Returns a style for a street segment based on its category number:
+     *  - 4: Blue
+     *  - 3: Light green
+     *  - 2: Yellow
+     *  - 1: Red
+     * @param {Feature} feature - OL feature to style.
+     * @returns {Style} The style object for the feature.
+     */
     function styleByCategory(feature) {
-        const category = feature.get('category_number');
+        const category = feature.get("category_number");
         let color;
 
         switch (category) {
             case 4:
-                color = 'blue';
+                color = "blue";
                 break;
             case 3:
-                color = 'rgba(34, 192, 13, 0.8)';
+                color = "rgba(34, 192, 13, 0.8)";
                 break;
             case 2:
-                color = 'yellow';
+                color = "yellow";
                 break;
             case 1:
-                color = 'red';
+                color = "red";
                 break;
             default:
-                color = 'gray';
+                color = "gray";
         }
 
         return new Style({
             stroke: new Stroke({
-                color: color,
+                color,
                 width: 5,
             }),
         });
     }
 
-
-    function calculateDistance(startId: string, endId: string): number {
-        const [startLon, startLat] = transform([parseFloat(startId.split(',')[0]), parseFloat(startId.split(',')[1])], 'EPSG:3857', 'EPSG:4326');
-        const [endLon, endLat] = transform([parseFloat(endId.split(',')[0]), parseFloat(endId.split(',')[1])], 'EPSG:3857', 'EPSG:4326');
-
-        const R = 6371e3; // Earth's radius in meters
-        const φ1 = startLat * Math.PI / 180; // φ, λ in radians
-        const φ2 = endLat * Math.PI / 180;
-        const Δφ = (endLat - startLat) * Math.PI / 180;
-        const Δλ = (endLon - startLon) * Math.PI / 180;
-
-        const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-        const distance = R * c; // in meters
-        return distance;
-    }
-
-    function calculateEstimatedTime(distanceInMeters) {
-        const distanceInKm = distanceInMeters / 1000; // Distanz in Kilometer
-        const averageSpeedKmH = 15; // Durchschnittliche Geschwindigkeit in km/h
-        const timeInHours = distanceInKm / averageSpeedKmH; // Zeit in Stunden
-        const timeInMinutes = timeInHours * 60; // Zeit in Minuten
-        return Math.round(timeInMinutes); // Auf ganze Minuten runden
-    }
-
-
-    function calculateSafetyScore(costVector: number[]) {
-        const weights: number[] = getWeightVector(0);
-        let calculatedDistance: number;
-        let safetyScore: number = 0.0;
-        switch (sliderValue) {
-            case 0: // safest
-                calculatedDistance = calcBackWeights(costVector, weights, sliderValue);
-                safetyScore = calculatedDistance / costVector[4];
-                break;
-            case 1: // balanced
-                calculatedDistance = calcBackWeights(costVector, weights, sliderValue);
-                safetyScore = calculatedDistance / costVector[4];
-                break;
-            case 2: // fastest
-                calculatedDistance = calcBackWeights(costVector, weights, sliderValue);
-                safetyScore = calculatedDistance / costVector[4];
-                break;
-        }
-        // zwsichen 1.0 bis 6.0 normalisieren
-        safetyScore = 1.0 + ((safetyScore - 1.0) / (7.5 - 1.0)) * (6.0 - 1.0);
-
-        return safetyScore;
-    }
-    
-    function calcBackWeights(costVector: number[], weights: number[], sliderValue: number) {
-        const weightVector = getWeightVector(sliderValue);
-        let cat1 = costVector[3];
-        let cat2 = costVector[2] - (cat1 * weightVector[2]);
-        let cat3 = costVector[1] - ((cat2 * weightVector[1]) + (cat1 * weightVector[2] * weightVector[1]));
-        let cat4 = costVector[0] - ((cat3 * weightVector[0]) + (cat2 * weightVector[1] * weightVector[0]) + (cat1 * weightVector[2] * weightVector[1] * weightVector[0]));
-        return (cat1 * weights[0] * weights[1] * weights[2]) + (cat2 * weights[1] * weights[2]) + (cat3 * weights[2]) + cat4;
-        
-    }
-
-
+    /**
+     * Updates or removes start/end markers on the map based on state changes.
+     */
     function updateMarkers() {
         if (!map) return;
 
-        // Identifiziere oder erstelle den Marker-Layer
         const layers = map.olMap.getLayers().getArray();
-        let markerLayer = layers.find(layer => layer.get('id') === "markerLayer");
+        let markerLayer = layers.find((layer) => layer.get("id") === "markerLayer");
 
         if (!markerLayer) {
             markerLayer = new VectorLayer({
                 source: new VectorSource(),
-                style: null, // Marker-Stile werden individuell gesetzt
+                style: null,
             });
-            markerLayer.set('id', 'markerLayer');
+            markerLayer.set("id", "markerLayer");
             map.olMap.addLayer(markerLayer);
         }
 
         const source = markerLayer.getSource();
 
-        // Entferne Marker, falls keine Startkoordinaten gesetzt sind
+        // Remove start marker if no coordinates
         if (startCoordinates.length === 0) {
-            const startFeature = source.getFeatures().find(f => f.get('type') === 'start');
+            const startFeature = source.getFeatures().find((f) => f.get("type") === "start");
             if (startFeature) source.removeFeature(startFeature);
         } else {
-            // Füge oder aktualisiere den Start-Marker
-            let startFeature = source.getFeatures().find(f => f.get('type') === 'start');
+            let startFeature = source.getFeatures().find((f) => f.get("type") === "start");
             if (!startFeature) {
-                startFeature = new Feature({ geometry: new Point(startCoordinates)});
-                startFeature.set('type', 'start'); // Marker-Typ setzen
+                startFeature = new Feature({ geometry: new Point(startCoordinates) });
+                startFeature.set("type", "start");
                 source.addFeature(startFeature);
             } else {
                 startFeature.setGeometry(new Point(startCoordinates));
             }
-            startFeature.setStyle(new Style({
-                image: new CircleStyle({
-                    radius: 6,
-                    fill: new Fill({ color: 'black' }),
-                }),
-                text: new OLText({
-                    text: "Start",
-                    font: '12px Calibri,sans-serif',
-                    fill: new Fill({ color: 'black' }),
-                    stroke: new Stroke({ color: 'white', width: 3 }),
-                    offsetY: -15, // Text oberhalb des Markers
-                }),
-            }));
+            startFeature.setStyle(
+                new Style({
+                    image: new CircleStyle({
+                        radius: 6,
+                        fill: new Fill({ color: "black" }),
+                    }),
+                    text: new OLText({
+                        text: "Start",
+                        font: "12px Calibri,sans-serif",
+                        fill: new Fill({ color: "black" }),
+                        stroke: new Stroke({ color: "white", width: 3 }),
+                        offsetY: -15,
+                    }),
+                })
+            );
         }
 
-        // Entferne Marker, falls keine Endkoordinaten gesetzt sind
+        // Remove end marker if no coordinates
         if (endCoordinates.length === 0) {
-            const endFeature = source.getFeatures().find(f => f.get('type') === 'end');
+            const endFeature = source.getFeatures().find((f) => f.get("type") === "end");
             if (endFeature) source.removeFeature(endFeature);
         } else {
-            // Füge oder aktualisiere den End-Marker
-            let endFeature = source.getFeatures().find(f => f.get('type') === 'end');
+            let endFeature = source.getFeatures().find((f) => f.get("type") === "end");
             if (!endFeature) {
-                endFeature = new Feature({ geometry: new Point(endCoordinates)});
-                endFeature.set('type', 'end'); // Marker-Typ setzen
+                endFeature = new Feature({ geometry: new Point(endCoordinates) });
+                endFeature.set("type", "end");
                 source.addFeature(endFeature);
             } else {
                 endFeature.setGeometry(new Point(endCoordinates));
             }
-            endFeature.setStyle(new Style({
-                image: new CircleStyle({
-                    radius: 6,
-                    fill: new Fill({ color: 'black' }),
-                }),
-                text: new OLText({
-                    text: "End",
-                    font: '12px Calibri,sans-serif',
-                    fill: new Fill({ color: 'black' }),
-                    stroke: new Stroke({ color: 'white', width: 3 }),
-                    offsetY: -15, // Text oberhalb des Markers
-                }),
-            }));
+            endFeature.setStyle(
+                new Style({
+                    image: new CircleStyle({
+                        radius: 6,
+                        fill: new Fill({ color: "black" }),
+                    }),
+                    text: new OLText({
+                        text: "End",
+                        font: "12px Calibri,sans-serif",
+                        fill: new Fill({ color: "black" }),
+                        stroke: new Stroke({ color: "white", width: 3 }),
+                        offsetY: -15,
+                    }),
+                })
+            );
         }
     }
 
     useEffect(() => {
         updateMarkers();
     }, [startCoordinates, endCoordinates]);
-    
+
+    // --------------------------------------
+    //  Render
+    // --------------------------------------
+
     return (
         <Flex height="100%" direction="column" overflow="hidden" width="100%">
             <Flex
@@ -1095,16 +979,13 @@ export function MapApp() {
                 justifyContent="space-between"
                 alignItems="flex-start"
             >
+                {/* Address Fields */}
                 <Box marginBottom="20px">
                     <Text fontSize="lg" fontWeight="bold" marginBottom="10px">
                         Enter Start and Destination Address
                     </Text>
                     <Select
-                        value={
-                            startId
-                                ? { value: startId, label: startAddress }
-                                : null
-                        }
+                        value={startId ? { value: startId, label: startAddress } : null}
                         options={addressSuggestions.map((address) => ({
                             value: nearestNodeMapping[address],
                             label: address,
@@ -1112,12 +993,13 @@ export function MapApp() {
                         onChange={(selectedOption) => {
                             setStartId(selectedOption ? selectedOption.value : "");
                             setStartAddress(selectedOption ? selectedOption.label : "");
-
                             if (selectedOption && coordinatesMap[selectedOption.label]) {
-                                const coords = coordinatesMap[selectedOption.label].split(",").map(Number);
+                                const coords = coordinatesMap[selectedOption.label]
+                                    .split(",")
+                                    .map(Number);
                                 setStartCoordinates(coords);
                             } else {
-                                setStartCoordinates([]); // Entfernt den Marker
+                                setStartCoordinates([]);
                             }
                         }}
                         placeholder="Enter your start address"
@@ -1131,11 +1013,7 @@ export function MapApp() {
                     />
 
                     <Select
-                        value={
-                            endId
-                                ? { value: endId, label: destinationAddress }
-                                : null
-                        }
+                        value={endId ? { value: endId, label: destinationAddress } : null}
                         options={filteredDestinations.map((address) => ({
                             value: nearestNodeMapping[address],
                             label: address,
@@ -1143,12 +1021,13 @@ export function MapApp() {
                         onChange={(selectedOption) => {
                             setEndId(selectedOption ? selectedOption.value : "");
                             setDestinationAddress(selectedOption ? selectedOption.label : "");
-
                             if (selectedOption && coordinatesMap[selectedOption.label]) {
-                                const coords = coordinatesMap[selectedOption.label].split(",").map(Number);
+                                const coords = coordinatesMap[selectedOption.label]
+                                    .split(",")
+                                    .map(Number);
                                 setEndCoordinates(coords);
                             } else {
-                                setEndCoordinates([]); // Entfernt den Marker
+                                setEndCoordinates([]);
                             }
                         }}
                         placeholder="Enter your destination address"
@@ -1195,9 +1074,9 @@ export function MapApp() {
                             onChange={(val) => setSliderValue(val)}
                         >
                             <SliderTrack>
-                                <SliderFilledTrack/>
+                                <SliderFilledTrack />
                             </SliderTrack>
-                            <SliderThumb/>
+                            <SliderThumb />
                         </Slider>
                         <Text mt={2} textAlign="center">
                             {sliderLabels[sliderValue]}
@@ -1235,7 +1114,11 @@ export function MapApp() {
                         textAlign={"center"}
                         mb={4}
                         readOnly={true}
-                        style={{ backgroundColor: getSafetyRatingColor(parseFloat(safetyRating.split(' ')[2])) }}
+                        style={{
+                            backgroundColor: getSafetyRatingColor(
+                                parseFloat(safetyRating.split(" ")[2])
+                            ),
+                        }}
                     />
                     <Input
                         id="timeEfficiencyRating"
@@ -1255,7 +1138,6 @@ export function MapApp() {
                     <Button colorScheme="red" mb={4} onClick={resetInputs}>
                         Reset Input
                     </Button>
-                    {/* Toggle */}
                     <Box>
                         <Flex direction="column" alignItems="center" mb={1}>
                             <Text mb={2} textAlign="center">
@@ -1273,6 +1155,7 @@ export function MapApp() {
                 </Flex>
             </Flex>
 
+            {/* Map Container */}
             <Box
                 backgroundColor="white"
                 borderWidth="1px"
@@ -1286,7 +1169,7 @@ export function MapApp() {
                 <MapContainer
                     mapId={MAP_ID}
                     role="main"
-                    aria-label={intl.formatMessage({id: "ariaLabel.map"})}
+                    aria-label={intl.formatMessage({ id: "ariaLabel.map" })}
                 >
                     <MapAnchor position="top-left" horizontalGap={5} verticalGap={5}>
                         {measurementIsActive && (
@@ -1297,59 +1180,194 @@ export function MapApp() {
                                 padding={2}
                                 boxShadow="lg"
                                 role="top-left"
-                                aria-label={intl.formatMessage({id: "ariaLabel.topLeft"})}
+                                aria-label={intl.formatMessage({ id: "ariaLabel.topLeft" })}
                             >
                                 <Box role="dialog" aria-labelledby={measurementTitleId}>
                                     <TitledSection
                                         title={
-                                            <SectionHeading
-                                                id={measurementTitleId}
-                                                size="md"
-                                                mb={2}
-                                            >
-                                                {intl.formatMessage({id: "measurementTitle"})}
+                                            <SectionHeading id={measurementTitleId} size="md" mb={2}>
+                                                {intl.formatMessage({ id: "measurementTitle" })}
                                             </SectionHeading>
                                         }
                                     >
-                                        <Measurement mapId={MAP_ID}/>
+                                        <Measurement mapId={MAP_ID} />
                                     </TitledSection>
                                 </Box>
                             </Box>
                         )}
                     </MapAnchor>
+
                     <MapAnchor position="bottom-right" horizontalGap={10} verticalGap={30}>
                         <Flex
                             role="bottom-right"
-                            aria-label={intl.formatMessage({id: "ariaLabel.bottomRight"})}
+                            aria-label={intl.formatMessage({ id: "ariaLabel.bottomRight" })}
                             direction="column"
                             gap={1}
                             padding={1}
                         >
                             <ToolButton
-                                label={intl.formatMessage({id: "measurementTitle"})}
-                                icon={<PiRulerLight/>}
+                                label={intl.formatMessage({ id: "measurementTitle" })}
+                                icon={<PiRulerLight />}
                                 isActive={measurementIsActive}
                                 onClick={toggleMeasurement}
                             />
-                            <InitialExtent mapId={MAP_ID}/>
-                            <ZoomIn mapId={MAP_ID}/>
-                            <ZoomOut mapId={MAP_ID}/>
+                            <InitialExtent mapId={MAP_ID} />
+                            <ZoomIn mapId={MAP_ID} />
+                            <ZoomOut mapId={MAP_ID} />
                         </Flex>
                     </MapAnchor>
                 </MapContainer>
             </Box>
+
+            {/* Footer */}
             <Flex
                 role="region"
-                aria-label={intl.formatMessage({id: "ariaLabel.footer"})}
+                aria-label={intl.formatMessage({ id: "ariaLabel.footer" })}
                 gap={3}
                 alignItems="center"
                 justifyContent="center"
             >
-                <CoordinateViewer mapId={MAP_ID} precision={2}/>
-                <ScaleBar mapId={MAP_ID}/>
-                <ScaleViewer mapId={MAP_ID}/>
+                <CoordinateViewer mapId={MAP_ID} precision={2} />
+                <ScaleBar mapId={MAP_ID} />
+                <ScaleViewer mapId={MAP_ID} />
             </Flex>
-
         </Flex>
     );
 }
+
+
+/*
+            Dieser Code wird benötigt um category hinzuzufügen. wird in der fertigen applikation aber nicht benötigt.
+            */
+/*
+ // Sobald die Daten ready sind ...
+ vectorSource2.once('change', function () {
+
+
+   if (vectorSource2.getState() === 'ready') {
+     const features = vectorSource2.getFeatures();
+     console.log(features)
+
+     const relevantProps = [
+       'bicycle',
+       'cycleway',
+       'cycleway_left',
+       'cycleway_right',
+       'bicycle_road',
+       'cycleway_right_bicycle',
+       'cycleway_left_bicycle'
+     ];
+
+     // Kategorien
+     const withoutCycleHighwayGroup = [];
+     const withoutCycleOther = [];
+     const cyclePropsYesDesignated = [];
+     const cyclePropsOther = [];
+
+     features.forEach((feature) => {
+       const properties = feature.getProperties();
+       console.log(properties)
+
+       // Prüfen, ob eine relevante Rad-Property vorhanden ist
+       const hasCycleProp = relevantProps.some((prop) => {
+         return properties[prop] != null && properties[prop] !== '';
+       });
+
+       if (!hasCycleProp) {
+         // Keine Radinfrastruktur, weiter unterteilen nach highway-Werten
+         const highway = properties.highway;
+         if (
+           highway === 'residential' ||
+           highway === 'living_street' ||
+           highway === 'bridleway' ||
+           highway === 'track'
+         ) {
+           feature.set('category_number', 2);
+           withoutCycleHighwayGroup.push(feature);
+         } else {
+           feature.set('category_number', 1);
+           withoutCycleOther.push(feature);
+         }
+       } else {
+         // Hat Radinfrastruktur, nun verfeinern:
+         const bicycleValue = properties.bicycle;
+         const bicycleRoadValue = properties.bicycle_road;
+
+         const isYesOrDesignated =
+           bicycleValue === 'yes' ||
+           bicycleValue === 'designated' ||
+           bicycleRoadValue === 'yes' ||
+           bicycleRoadValue === 'designated';
+
+         if (isYesOrDesignated) {
+           feature.set('category_number', 4);
+           cyclePropsYesDesignated.push(feature);
+         } else {
+           feature.set('category_number', 3);
+           cyclePropsOther.push(feature);
+         }
+       }
+
+       // Style anwenden
+       streetDataLayer.setStyle(styleByCategory);
+     });
+
+     const geoJSONFormat = new GeoJSON();
+
+     // Features als GeoJSON exportieren
+     const geojsonStr = geoJSONFormat.writeFeatures(features);
+     const blob = new Blob([geojsonStr], { type: 'application/json' });
+
+     // URL für den Blob erstellen
+     const url = URL.createObjectURL(blob);
+
+     // Temporären Link erstellen
+     const link = document.createElement('a');
+     link.href = url;
+     link.download = 'exportedGeojsonRouting.geojson';
+
+     // Link zum Dokument hinzufügen und Klick simulieren
+     document.body.appendChild(link);
+     link.click();
+
+     // Link wieder entfernen
+     document.body.removeChild(link);
+
+     // URL freigeben
+     URL.revokeObjectURL(url);
+   }
+ });
+ */
+
+/* 
+Dieser Code wird benötigt um den Graphen zu erstellen. 
+IN der normalen Applikation jedoch nicht notwendig, weil dieser dann schon erstellt wurde:
+
+fetch('./data/exportedGeojsonRouting (2).geojson') // Relativer Pfad zur Datei
+  .then((response) => {
+    if (!response.ok) {
+      throw new Error('Fehler beim Laden der GeoJSON-Datei');
+    }
+    return response.json();
+  })
+  .then((geojsonData) => {
+    const graph = buildGraphFromGeoJSON(geojsonData);
+    const graphObject = Object.fromEntries(graph); // Konvertiere Map in ein einfaches Objekt
+
+    const graphJSON = JSON.stringify(graphObject, null, 2); // Formatiere als JSON
+
+    // JSON-Datei erstellen und Download auslösen
+    const blob = new Blob([graphJSON], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'graph.json';
+    link.click();
+
+    // Graph-Statistik ausgeben
+    let edgeCount = 0;
+    graph.forEach((edges) => {
+      edgeCount += edges.length;
+    });
+  })
+  .catch((error) => console.error('Fehler:', error));
+*/
