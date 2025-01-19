@@ -889,6 +889,17 @@ export function MapApp() {
         });
     }
 
+    function getSafetyRatingColor(safetyScore: number): string {
+        if (safetyScore >= 1.0 && safetyScore < 2.5) {
+            return 'lightgreen';
+        } else if (safetyScore >= 2.5 && safetyScore < 4.0) {
+            return '#f3db57';
+        } else if (safetyScore >= 4.0) {
+            return '#f66f57';
+        }
+        return 'white'; // Default color
+    }
+    
     function styleDefaultBlue() {
         return new Style({
             stroke: new Stroke({
@@ -1109,7 +1120,7 @@ export function MapApp() {
                                 setStartCoordinates([]); // Entfernt den Marker
                             }
                         }}
-                        placeholder="Enter your starting address"
+                        placeholder="Enter your start address"
                         isClearable
                         styles={{
                             container: (provided) => ({
@@ -1224,6 +1235,7 @@ export function MapApp() {
                         textAlign={"center"}
                         mb={4}
                         readOnly={true}
+                        style={{ backgroundColor: getSafetyRatingColor(parseFloat(safetyRating.split(' ')[2])) }}
                     />
                     <Input
                         id="timeEfficiencyRating"
