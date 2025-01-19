@@ -1,7 +1,18 @@
 // SPDX-FileCopyrightText: 2023 Open Pioneer project (https://github.com/open-pioneer)
 // SPDX-License-Identifier: Apache-2.0
 import OLText from 'ol/style/Text';
-import {Switch, Box, Button, Flex, Text, Input, Slider, SliderTrack, SliderFilledTrack, SliderThumb} from "@open-pioneer/chakra-integration";
+import {
+    Box,
+    Button,
+    Flex,
+    Input,
+    Slider,
+    SliderFilledTrack,
+    SliderThumb,
+    SliderTrack,
+    Switch,
+    Text
+} from "@open-pioneer/chakra-integration";
 import {MapAnchor, MapContainer, useMapModel} from "@open-pioneer/map";
 import {ScaleBar} from "@open-pioneer/scale-bar";
 import {InitialExtent, ZoomIn, ZoomOut} from "@open-pioneer/map-navigation";
@@ -26,9 +37,8 @@ import {Image} from "@chakra-ui/react";
 import Feature from 'ol/Feature.js';
 import LineString from 'ol/geom/LineString.js';
 import Select from "react-select";
-import {coordinates} from "ol/geom/flat/reverse";
 import {Point} from "ol/geom";
-import { createEmpty, extend } from 'ol/extent';
+import {createEmpty, extend} from 'ol/extent';
 
 
 export function MapApp() {
@@ -386,7 +396,8 @@ export function MapApp() {
 
 
 
-    function getWeightVector(sliderValue: number) {
+    function 
+    getWeightVector(sliderValue: number) {
         switch(sliderValue){
             case 0: 
                 return [1.5, 2, 2.5];
@@ -816,6 +827,14 @@ export function MapApp() {
 
             // 3) Features in die Source des Route-Layers hinzufügen
             source.addFeatures(routeSegments);
+
+            
+            // Sicherheits- und Zeitbewertung ausgeben
+            const estimatedTime = calculateEstimatedTime(paths[0].costVector[4]);
+            setTimeEfficiencyRating(`${(paths[0].costVector[4] / 1000).toFixed(2)} km (~${estimatedTime} min)`);
+
+
+            setSafetyRating(`Safety Rating: ${calculateSafetyScore(paths[0].costVector).toFixed(1)}`);
         });
     }
 
@@ -851,7 +870,7 @@ export function MapApp() {
         return new Style({
             stroke: new Stroke({
                 color: color,
-                width: 3,
+                width: 5,
             }),
         });
     }
@@ -875,6 +894,50 @@ export function MapApp() {
         const distance = R * c; // in meters
         return distance;
     }
+
+    function calculateEstimatedTime(distanceInMeters) {
+        const distanceInKm = distanceInMeters / 1000; // Distanz in Kilometer
+        const averageSpeedKmH = 15; // Durchschnittliche Geschwindigkeit in km/h
+        const timeInHours = distanceInKm / averageSpeedKmH; // Zeit in Stunden
+        const timeInMinutes = timeInHours * 60; // Zeit in Minuten
+        return Math.round(timeInMinutes); // Auf ganze Minuten runden
+    }
+
+
+    function calculateSafetyScore(costVector: number[]) {
+        const weights: number[] = getWeightVector(0);
+        let calculatedDistance: number;
+        let safetyScore: number = 0.0;
+        switch (sliderValue) {
+            case 0: // safest
+                calculatedDistance = calcBackWeights(costVector, weights, sliderValue);
+                safetyScore = calculatedDistance / costVector[4];
+                break;
+            case 1: // balanced
+                calculatedDistance = calcBackWeights(costVector, weights, sliderValue);
+                safetyScore = calculatedDistance / costVector[4];
+                break;
+            case 2: // fastest
+                calculatedDistance = calcBackWeights(costVector, weights, sliderValue);
+                safetyScore = calculatedDistance / costVector[4];
+                break;
+        }
+        // zwsichen 1.0 bis 6.0 normalisieren
+        safetyScore = 1.0 + ((safetyScore - 1.0) / (7.5 - 1.0)) * (6.0 - 1.0);
+
+        return safetyScore;
+    }
+    
+    function calcBackWeights(costVector: number[], weights: number[], sliderValue: number) {
+        const weightVector = getWeightVector(sliderValue);
+        let cat1 = costVector[3];
+        let cat2 = costVector[2] - (cat1 * weightVector[2]);
+        let cat3 = costVector[1] - ((cat2 * weightVector[1]) + (cat1 * weightVector[2] * weightVector[1]));
+        let cat4 = costVector[0] - ((cat3 * weightVector[0]) + (cat2 * weightVector[1] * weightVector[0]) + (cat1 * weightVector[2] * weightVector[1] * weightVector[0]));
+        return (cat1 * weights[0] * weights[1] * weights[2]) + (cat2 * weights[1] * weights[2]) + (cat3 * weights[2]) + cat4;
+        
+    }
+
 
     function updateMarkers() {
         if (!map) return;
@@ -1105,15 +1168,17 @@ export function MapApp() {
                     </Text>
                     <Input
                         id="safetyRating"
-                        placeholder="Safety Rating not set yet"
+                        placeholder="Safety Rating (1.0 - 6.0 )"
                         value={safetyRating}
+                        textAlign={"center"}
                         mb={4}
                         readOnly={true}
                     />
                     <Input
                         id="timeEfficiencyRating"
-                        placeholder="Time Efficiency Rating not set yet"
+                        placeholder="Distance/Time"
                         value={timeEfficiencyRating}
+                        textAlign={"center"}
                         readOnly={true}
                         maxWidth="1000px"
                     />
