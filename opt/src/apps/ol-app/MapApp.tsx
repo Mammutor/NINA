@@ -828,12 +828,61 @@ export function MapApp() {
             // 3) Features in die Source des Route-Layers hinzufügen
             source.addFeatures(routeSegments);
 
+            // add linestrings from addresses to route
+            if (startId && startCoordinates && endId && endCoordinates) {
+                // StartId und EndId in Koordinaten umwandeln
+                const startIdCoordinates = startId.split(",").map(Number);
+                const endIdCoordinates = endId.split(",").map(Number);
+
+                // Erstelle die LineStrings
+                const startLineString = new LineString([startCoordinates, startIdCoordinates]);
+                const endLineString = new LineString([endCoordinates, endIdCoordinates]);
+
+                console.log("Start LineString:", startLineString);
+                console.log("End LineString:", endLineString);
+
+                // Erstelle Features
+                const startFeature = new Feature({
+                    geometry: startLineString,
+                });
+
+                const endFeature = new Feature({
+                    geometry: endLineString,
+                });
+
+                // Identifizieren des Layers
+                const layers = map.olMap.getLayers().getArray();
+                let addressToRouteLayer = layers.find(layer => layer.get('id') === "addressToRouteLayer");
+
+                // Falls der Layer nicht existiert, erstellen Sie ihn
+                if (!addressToRouteLayer) {
+                    addressToRouteLayer = new VectorLayer({
+                        source: new VectorSource(),
+                        style: new Style({
+                            stroke: new Stroke({
+                                color: 'lightblue', // Farbe der Linien
+                                width: 6,           // Breite der Linien
+                                lineDash: [1, 10],  // Gepunktete Linie
+                            }),
+                        }),
+                    });
+
+                    addressToRouteLayer.set('id', 'addressToRouteLayer');
+                    map.olMap.addLayer(addressToRouteLayer);
+                }
+
+                // Entferne alte Features
+                const source = addressToRouteLayer.getSource();
+                source.clear();
+
+                // Füge neue Features hinzu
+                source.addFeatures([startFeature, endFeature]);
+            }
             
             // Sicherheits- und Zeitbewertung ausgeben
             const estimatedTime = calculateEstimatedTime(paths[0].costVector[4]);
             setTimeEfficiencyRating(`${(paths[0].costVector[4] / 1000).toFixed(2)} km (~${estimatedTime} min)`);
-
-
+            
             setSafetyRating(`Safety Rating: ${calculateSafetyScore(paths[0].costVector).toFixed(1)}`);
         });
     }
