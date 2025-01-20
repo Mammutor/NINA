@@ -40,6 +40,7 @@ import LineString from "ol/geom/LineString.js";
 import Select from "react-select";
 import { Point } from "ol/geom";
 import { createEmpty, extend } from "ol/extent";
+import {Divider} from "@chakra-ui/icons";
 
 /**
  * Main component for the map application. It manages state for:
@@ -1218,6 +1219,113 @@ export function MapApp() {
                             <ZoomIn mapId={MAP_ID} />
                             <ZoomOut mapId={MAP_ID} />
                         </Flex>
+                    </MapAnchor>
+                    {/* Legende hinzufügen */}
+                    <MapAnchor position="top-right" horizontalGap={10} verticalGap={10}>
+                        <Box
+                            top="20px"
+                            left="20px"
+                            backgroundColor="white"
+                            padding="10px"
+                            borderRadius="8px"
+                            boxShadow="md"
+                            zIndex="10"
+                            opacity="0.7"
+                            visibility={isSwitchChecked ? "hidden" : "visible"}
+                        >
+                            <Text fontWeight="bold" marginBottom="4">
+                                Legend
+                            </Text>
+                            <Flex alignItems="center" marginBottom="2">
+                                <Box
+                                    width="16px"
+                                    height="16px"
+                                    backgroundColor="black"
+                                    marginRight="8px"
+                                    borderRadius="50%"
+                                ></Box>
+                                <Text>Start/End Point</Text>
+                            </Flex>
+                            <Divider marginBottom="2" />
+                            <Flex alignItems="center" marginBottom="2">
+                                <Box
+                                    width="16px"
+                                    height="16px"
+                                    backgroundColor="blue"
+                                    marginRight="8px"
+                                    borderRadius="50%"
+                                ></Box>
+                                <Text>Route</Text>
+                            </Flex>
+                        </Box>
+                    </MapAnchor>
+                    <MapAnchor position="top-right" horizontalGap={10} verticalGap={10}>
+                        <Box
+                            top="20px"
+                            left="20px"
+                            backgroundColor="white"
+                            padding="10px"
+                            borderRadius="8px"
+                            boxShadow="md"
+                            zIndex="10"
+                            opacity="0.7"
+                            visibility={isSwitchChecked ? "visible" : "hidden"}
+                        >
+                            <Text fontWeight="bold" marginBottom="4">
+                                Legend
+                            </Text>
+                            <Flex alignItems="center" marginBottom="2">
+                                <Box
+                                    width="16px"
+                                    height="16px"
+                                    backgroundColor="black"
+                                    marginRight="8px"
+                                    borderRadius="50%"
+                                ></Box>
+                                <Text>Start/End Point</Text>
+                            </Flex>
+                            <Divider marginBottom="2" />
+                            <Flex alignItems="center" marginBottom="2">
+                                <Box
+                                    width="16px"
+                                    height="16px"
+                                    backgroundColor="blue"
+                                    marginRight="8px"
+                                    borderRadius="50%"
+                                ></Box>
+                                <Text>Separated Bike Lane</Text>
+                            </Flex>
+                            <Flex alignItems="center" marginBottom="2">
+                                <Box
+                                    width="16px"
+                                    height="16px"
+                                    backgroundColor="rgba(34, 192, 13)"
+                                    marginRight="8px"
+                                    borderRadius="50%"
+                                ></Box>
+                                <Text>Bike Lane</Text>
+                            </Flex>
+                            <Flex alignItems="center" marginBottom="2">
+                                <Box
+                                    width="16px"
+                                    height="16px"
+                                    backgroundColor="yellow"
+                                    marginRight="8px"
+                                    borderRadius="50%"
+                                ></Box>
+                                <Text>Calm Street</Text>
+                            </Flex>
+                            <Flex alignItems="center">
+                                <Box
+                                    width="16px"
+                                    height="16px"
+                                    backgroundColor="red"
+                                    marginRight="8px"
+                                    borderRadius="50%"
+                                ></Box>
+                                <Text>Unsafe Street</Text>
+                            </Flex>
+                        </Box>
                     </MapAnchor>
                 </MapContainer>
             </Box>
