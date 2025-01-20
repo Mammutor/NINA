@@ -193,7 +193,7 @@ export function MapApp() {
             // Always apply the correct style
             plannedAreasLayer.setStyle(new Style({
                 fill: new Fill({
-                    color: 'rgba(75, 87, 81, 0.3)', // Semi-transparent gray
+                    color: 'rgba(108,121,115,0.1)', // Semi-transparent gray
                 }),
                 stroke: new Stroke({
                     color: '#000000',
@@ -845,9 +845,9 @@ export function MapApp() {
 
     /**
      * Returns a style for a street segment based on its category number:
-     *  - 4: Blue
-     *  - 3: Light green
-     *  - 2: Yellow
+     *  - 4: Cyanblue
+     *  - 3: Limegreen
+     *  - 2: Orange
      *  - 1: Red
      * @param {Feature} feature - OL feature to style.
      * @returns {Style} The style object for the feature.
@@ -858,13 +858,13 @@ export function MapApp() {
 
         switch (category) {
             case 4:
-                color = "blue";
+                color = "rgba(2,157,255)";
                 break;
             case 3:
-                color = "rgba(34, 192, 13, 0.8)";
+                color = "limegreen";
                 break;
             case 2:
-                color = "yellow";
+                color = "orange";
                 break;
             case 1:
                 color = "red";
@@ -1232,6 +1232,7 @@ export function MapApp() {
                             zIndex="10"
                             opacity="0.7"
                             visibility={isSwitchChecked ? "hidden" : "visible"}
+                            display={!isSwitchEnabled ? "none" : "block"}
                         >
                             <Text fontWeight="bold" marginBottom="4">
                                 Legend
@@ -1270,6 +1271,7 @@ export function MapApp() {
                             zIndex="10"
                             opacity="0.7"
                             visibility={isSwitchChecked ? "visible" : "hidden"}
+                            display={!isSwitchEnabled ? "none" : "block"}
                         >
                             <Text fontWeight="bold" marginBottom="4">
                                 Legend
@@ -1289,9 +1291,10 @@ export function MapApp() {
                                 <Box
                                     width="16px"
                                     height="16px"
-                                    backgroundColor="blue"
+                                    backgroundColor="rgba(2,157,255)"
                                     marginRight="8px"
                                     borderRadius="50%"
+                                    opacity={1.0}
                                 ></Box>
                                 <Text>Separated Bike Lane</Text>
                             </Flex>
@@ -1299,19 +1302,21 @@ export function MapApp() {
                                 <Box
                                     width="16px"
                                     height="16px"
-                                    backgroundColor="rgba(34, 192, 13)"
+                                    backgroundColor="limegreen"
                                     marginRight="8px"
                                     borderRadius="50%"
+                                    opacity={1.0}
                                 ></Box>
-                                <Text>Bike Lane</Text>
+                                <Text>Integrated Bike Lane</Text>
                             </Flex>
                             <Flex alignItems="center" marginBottom="2">
                                 <Box
                                     width="16px"
                                     height="16px"
-                                    backgroundColor="yellow"
+                                    backgroundColor="orange"
                                     marginRight="8px"
                                     borderRadius="50%"
+                                    opacity={1.0}
                                 ></Box>
                                 <Text>Calm Street</Text>
                             </Flex>
@@ -1322,6 +1327,7 @@ export function MapApp() {
                                     backgroundColor="red"
                                     marginRight="8px"
                                     borderRadius="50%"
+                                    opacity={1.0}
                                 ></Box>
                                 <Text>Unsafe Street</Text>
                             </Flex>
