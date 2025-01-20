@@ -123,6 +123,11 @@ export function MapApp() {
                 const source = targetLayer.getSource();
                 source.clear();
             }
+
+            const view = map.olMap.getView();
+            const centerPoint = [846640, 6794700];
+            view.setCenter(centerPoint);
+            view.setZoom(14.7);
         }
     }
 
