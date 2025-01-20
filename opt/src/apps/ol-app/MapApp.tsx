@@ -48,8 +48,6 @@ import { createEmpty, extend } from "ol/extent";
  *  - route rendering
  *  - safety/time ratings
  *  - markers and layers
- *
- * @returns {JSX.Element} The MapApp component.
  */
 export function MapApp() {
     const intl = useIntl();
