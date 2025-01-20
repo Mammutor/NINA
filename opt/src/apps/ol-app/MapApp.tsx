@@ -13,6 +13,7 @@ import {
     SliderTrack,
     Switch,
     Text,
+    Spinner
 } from "@open-pioneer/chakra-integration";
 import { MapAnchor, MapContainer, useMapModel } from "@open-pioneer/map";
 import { ScaleBar } from "@open-pioneer/scale-bar";
@@ -73,6 +74,7 @@ export function MapApp() {
     const [isSwitchEnabled, setIsSwitchEnabled] = useState(false);
     const [isSwitchChecked, setIsSwitchChecked] = useState(false);
     const [mapGraph, setMapGraph] = useState(new Map());
+    const [isLoading, setIsLoading] = useState(false);
 
     const sliderLabels = ["Safest", "Balanced", "Fastest"];
 
@@ -240,17 +242,8 @@ export function MapApp() {
             });
             streetDataLayer.set("id", "streetDataLayer");
             map.olMap.addLayer(streetDataLayer);
-
-            // -----------------------------
-            // Uncommented approach to fill category (not needed in final app)
-            // streetDataSource.once("change", function () {
-            //   if (streetDataSource.getState() === "ready") {
-            //     // ...
-            //   }
-            // });
-            // -----------------------------
         }
-    }, [map, isSwitchChecked]);
+    }, [map]);
 
     /**
      * Updates the style of the route layer when the switch changes.
@@ -361,6 +354,7 @@ export function MapApp() {
      */
     function calculateRoute() {
         setIsSwitchEnabled(true);
+        setIsLoading(true);
 
         // Calculate approximate distance (in meters) between the addresses.
         let distance = calculateDistance(startId, endId);
@@ -456,8 +450,12 @@ export function MapApp() {
                     );
                     zoomToFeatures();
                 }
+                setIsLoading(false);
             })
-            .catch((error) => console.error("Error:", error));
+            .catch((error) => {
+                setIsLoading(false);
+                console.error("Error loading graph data:", error);
+            });
     }
 
     /**
@@ -1088,23 +1086,41 @@ export function MapApp() {
                     </Box>
                 </Flex>
 
-                {/* Start */}
-                <Flex direction="column">
+                <Flex direction="column" alignItems="center">
                     <Text fontSize="lg" fontWeight="bold" mb={5} textAlign="center">
                         Start
                     </Text>
-                    <Button
-                        colorScheme="green"
-                        mb={4}
-                        onClick={calculateRoute}
-                        borderRadius="full"
-                        w="75px"
-                        h="75px"
-                        isDisabled={!startAddress || !destinationAddress}
-                    >
-                        Go!
-                    </Button>
+                    <Box position="relative" display="inline-block">
+                        {/* Spinner um den Button, wenn isLoading true ist */}
+                        {isLoading && (
+                            <Box
+                                position="absolute"
+                                top="45%"
+                                left="50%"
+                                transform="translate(-50%, -50%)"
+                                zIndex="1"
+                            >
+                                <Spinner size="xl" color="blue.500" width="100px" // Zusätzliche Kontrolle der Breite
+                                         height="100px"/>
+                            </Box>
+                        )}
+                        <Button
+                            colorScheme="green"
+                            mb={4}
+                            onClick={calculateRoute}
+                            borderRadius="full"
+                            w="75px"
+                            h="75px"
+                            isDisabled={isLoading || !startAddress || !destinationAddress} // Button deaktivieren bei isLoading
+                            position="relative"
+                            zIndex={isLoading ? "0" : "auto"}
+                        >
+                            Go!
+                        </Button>
+                    </Box>
                 </Flex>
+
+
 
                 {/* Route Rating */}
                 <Box maxWidth="400px">
