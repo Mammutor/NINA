@@ -193,7 +193,7 @@ export function MapApp() {
             // Always apply the correct style
             plannedAreasLayer.setStyle(new Style({
                 fill: new Fill({
-                    color: 'rgba(108,121,115,0.1)', // Semi-transparent gray
+                    color: 'rgba(108,121,115,0.2)', // Semi-transparent gray
                 }),
                 stroke: new Stroke({
                     color: '#000000',
