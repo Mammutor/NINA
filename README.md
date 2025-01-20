@@ -63,20 +63,39 @@ $ pnpm run dev                                                 # Launch developm
 
 ## Onboarding
 
-1. Enter Start and Destination Adress
-![placeholder](documenting/placeholder.png)
+**1. Enter Start and Destination Address**
 
-2. Route Preferences
-![placeholder](documenting/placeholder.png)
+The "Enter Start and Destination Address" interface allows users to input their starting and destination points. The address suggestions are within the two predefined zones in Münster and the system automatically suggests destination addresses located in the same area as the starting address for convenience.
 
-3. Start Button
-![placeholder](documenting/placeholder.png)
+![placeholder](documenting/EnterStartAndDestinationAddress.png)
 
-4. Route Rating
-![placeholder](documenting/placeholder.png)
+**2. Route Preference**
 
-5. Options
-![placeholder](documenting/placeholder.png)
+In the "Route Preferences" interface, users can adjust a slider to select their preferred route type: Safest, Balanced, or Fastest, based on their individual needs and priorities.
+
+![placeholder](documenting/RoutePreferences.png)
+
+**3. Start**
+
+By clicking the "Go!" button, the system calculates the route based on your selected preferences and displays it on the map.
+
+![placeholder](documenting/Start.png)
+
+**4. Route Rating**
+
+By selecting the **safest** route the Route Rating interface shows the Safety Rating of 1.0 and the distance of 2.18km and time of about 9 minutes.
+![placeholder](documenting/Safest.png)
+
+By selecting the **balenced** route the Route Rating interface shows the Safety Rating of 1.9 and the distance of 1.69km and time of about 7 minutes.
+![placeholder](documenting/Balanced.png)
+
+By selecting the **fastest** route the Route Rating interface shows the Safety Rating of 3.0 and the distance of 1.49km and time of about 6 minutes.
+![placeholder](documenting/Fastest.png)
+
+**5. Options**
+
+The "Options" interface provides additional controls to enhance the user experience. It includes a "Reset Input" button that clears all entered data, allowing users to start fresh. Additionally, there is a toggle switch to enable or disable the display of Street Safety Categories on the map, providing more detailed insights into the safety aspects of the route.
+![placeholder](documenting/ShowStreetSafetyCategory.png)
 
 ## Project Results
 
