@@ -1506,4 +1506,38 @@ fetch('./data/exportedGeojsonRouting (2).geojson') // Relativer Pfad zur Datei
     });
   })
   .catch((error) => console.error('Fehler:', error));
+  
+  
+  function buildGraphFromGeoJSON(geojson) {
+        const graph = new Map();
+
+        geojson.features.forEach((feature) => {
+            const geometry = feature.geometry;
+            const properties = feature.properties;
+
+            if (geometry.type === "LineString") {
+                const coordinates = geometry.coordinates;
+                const length = properties.length;
+                const category = properties.category_number;
+
+                
+                for (let i = 0; i < coordinates.length - 1; i++) {
+                    const fromCoord = coordToId(coordinates[i]); 
+                    const toCoord = coordToId(coordinates[i + 1]);
+
+                    if (!graph.has(fromCoord)) {
+                        graph.set(fromCoord, []);
+                    }
+                    graph.get(fromCoord).push({node: toCoord, length, category});
+
+                    if (!graph.has(toCoord)) {
+                        graph.set(toCoord, []);
+                    }
+                    graph.get(toCoord).push({node: fromCoord, length, category});
+                }
+            }
+        });
+
+        return graph;
+    }
 */
