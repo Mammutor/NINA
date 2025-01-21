@@ -96,10 +96,13 @@ export function MapApp() {
         setEndCoordinates([]);
         setSliderValue(0);
 
-        if (isSwitchEnabled) {
-            setIsSwitchChecked(false);
+        if(startId !== "" && endId !== ""){
+            if (isSwitchEnabled) {
+                setIsSwitchChecked(false);
+            }
+            setIsSwitchEnabled((prev) => !prev);
         }
-        setIsSwitchEnabled((prev) => !prev);
+        
         setSafetyRating("");
         setTimeEfficiencyRating("");
 
