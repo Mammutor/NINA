@@ -98,15 +98,15 @@ The final rating is then translated into a grading system similar to school grad
 - 6.0 represents the least safe rating.
 
 
-By selecting the **safest** route the Route Rating interface shows the Safety Rating of 1.0 and the distance of 2.18km and time of about 9 minutes.
+By selecting the **safest** route the "Route Rating" interface shows the Safety Rating of 1.0 and the distance of 2.18km and time of about 9 minutes.
 
 ![placeholder](documenting/Safest.png)
 
-By selecting the **balenced** route the Route Rating interface shows the Safety Rating of 1.9 and the distance of 1.69km and time of about 7 minutes.
+By selecting the **balenced** route the "Route Rating" interface shows the Safety Rating of 1.9 and the distance of 1.69km and time of about 7 minutes.
 
 ![placeholder](documenting/Balanced.png)
 
-By selecting the **fastest** route the Route Rating interface shows the Safety Rating of 3.0 and the distance of 1.49km and time of about 6 minutes.
+By selecting the **fastest** route the "Route Rating" interface shows the Safety Rating of 3.0 and the distance of 1.49km and time of about 6 minutes.
 
 ![placeholder](documenting/Fastest.png)
 
