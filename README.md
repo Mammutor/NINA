@@ -2,7 +2,7 @@
 
 # SaBiNE
 
-![Project Status](https://img.shields.io/badge/Status-Active-brightgreen)
+![Project Status](https://img.shields.io/badge/Status-Completed-blue)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
 ![GitHub Contributors](https://img.shields.io/github/contributors/LHesse-UM/SaBiNE)
 
