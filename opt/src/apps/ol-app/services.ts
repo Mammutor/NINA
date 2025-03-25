@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { MapConfig, MapConfigProvider, SimpleLayer } from "@open-pioneer/map";
 import TileLayer from "ol/layer/Tile";
-import OSM from "ol/source/OSM";
+import {StadiaMaps} from "ol/source";
 
 export const MAP_ID = "main";
 export class MainMapProvider implements MapConfigProvider {
@@ -20,7 +20,7 @@ export class MainMapProvider implements MapConfigProvider {
                 new SimpleLayer({
                     title: "OpenStreetMap",
                     olLayer: new TileLayer({
-                        source: new OSM(),
+                        source: new StadiaMaps({layer: "alidade_smooth"}),
                         properties: { title: "OSM" }
                     }),
                     isBaseLayer: true

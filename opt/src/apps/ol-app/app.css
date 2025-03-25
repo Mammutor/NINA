@@ -24,3 +24,7 @@
     left: unset;
     right: 0.5em;
 }
+
+.chakra-button.tool-button{
+    background-color: #16a34a !important;
+}

@@ -7,26 +7,14 @@ import {
     Button,
     Flex,
     Input,
-    Slider,
-    SliderFilledTrack,
-    SliderThumb,
-    SliderTrack,
     Switch,
-    Text,
-    Spinner
+    Text
 } from "@open-pioneer/chakra-integration";
 import { MapAnchor, MapContainer, useMapModel } from "@open-pioneer/map";
-import { ScaleBar } from "@open-pioneer/scale-bar";
 import { InitialExtent, ZoomIn, ZoomOut } from "@open-pioneer/map-navigation";
 import { useIntl } from "open-pioneer:react-hooks";
-import { CoordinateViewer } from "@open-pioneer/coordinate-viewer";
-import { SectionHeading, TitledSection } from "@open-pioneer/react-utils";
-import { ToolButton } from "@open-pioneer/map-ui-components";
-import { ScaleViewer } from "@open-pioneer/scale-viewer";
 import { MAP_ID } from "./services";
 import { useEffect, useId, useState } from "react";
-import { Measurement } from "@open-pioneer/measurement";
-import { PiRulerLight } from "react-icons/pi";
 import VectorSource from "ol/source/Vector";
 import VectorLayer from "ol/layer/Vector.js";
 import GeoJSON from "ol/format/GeoJSON";
@@ -35,12 +23,11 @@ import Fill from "ol/style/Fill";
 import Stroke from "ol/style/Stroke";
 import CircleStyle from "ol/style/Circle";
 import { transform } from "ol/proj";
-import { Image } from "@chakra-ui/react";
 import Feature from "ol/Feature.js";
 import { Point } from "ol/geom";
 import { createEmpty, extend } from "ol/extent";
-import { Divider } from "@chakra-ui/icons";
 import proj4 from "proj4";
+import { motion, AnimatePresence } from "framer-motion";
 
 /**
  * Main component for the map application. It manages state for:
@@ -75,7 +62,14 @@ export function MapApp() {
     const [mapGraph, setMapGraph] = useState();
     const [isLoading, setIsLoading] = useState(false);
 
+    const selectLabels = ["Safest", "Balanced", "Fastest"];
+    const isMobilePortrait = window.innerWidth < 768 && window.innerHeight > window.innerWidth;
+    const [showPopup, setShowPopup] = useState(false);
+
     const sliderLabels = ["Safest", "Balanced", "Fastest"];
+
+    // Mobile Components
+    const [panelHeight] = useState(150); // Zielhöhe des offenen Panels
 
     const { map } = useMapModel(MAP_ID);
 
@@ -268,7 +262,7 @@ export function MapApp() {
             console.log("🚀 Beide Punkte gesetzt – Suche startet!");
             calculateRoute();
         }
-    }, [startCoordinates, endCoordinates]);
+    }, [startCoordinates, endCoordinates,sliderValue]);
     
     
 
@@ -304,7 +298,7 @@ export function MapApp() {
                 return [1, 1, 1];
         }
     }
-    
+
     /**
      * Main function to calculate and display the route between startId and endId.
      */
@@ -315,7 +309,7 @@ export function MapApp() {
         const transformedEndCoordinate = proj4("EPSG:3857", "EPSG:4326", endCoordinates);
         console.log("🚴‍♂️ Startpunkt:", transformedStartCoordinate);
 
-    
+        const isSafe = sliderValue === 0;
         // JSON-Objekt für die Route
         const requestData = {
             locations: [
@@ -323,7 +317,18 @@ export function MapApp() {
                 { lat: transformedEndCoordinate[1], lon: transformedEndCoordinate[0] }
             ],
             costing: "bicycle",
-            costing_oprions: { bicycle: { use_roads: 1, use_hills: 1, use_cycleways: 1 } },
+            costing_options: { bicycle: { 
+                use_roads: isSafe?0.1:0.9,
+                use_lit: isSafe?0.9:0.1,
+                maneuver_penalty: isSafe?50:1,
+                service_factor: isSafe?30:5,
+                use_living_streets: isSafe?1:0.6,
+                avoid_bad_surfaces: isSafe?1.0:0.0,
+                service_penalty: 1,
+                bicycle_type: isSafe?"City":"Road",
+                cycling_speed: 20
+
+            } },
             directions_options: { units: "kilometers" },
             shape_format: "geojson",
             format: "osrm",
@@ -339,7 +344,9 @@ export function MapApp() {
     
             const data = await response.json();
             const processeddata = data.routes[0];
-
+            setTimeEfficiencyRating(`${(processeddata.distance / 1000)    .toFixed(1).toString()} km / ${(processeddata.duration /60).toFixed(0)
+                .toString()} min`);
+                
             const geojsonFeature = {
                 type: "Feature",
                 properties: {},//ggf. weitere properties ergänzen
@@ -360,6 +367,8 @@ export function MapApp() {
         } finally {
             setIsLoading(false);
         }
+        zoomToFeatures();
+        setShowPopup(true);
     }
 
     /**
@@ -367,19 +376,19 @@ export function MapApp() {
      */
     function zoomToFeatures() {
         const layers = map.olMap.getLayers().getArray();
-        const targetLayer = layers.find((layer) => layer.get("id") === "routeLayer");
+        const targetLayer = layers[layers.length - 1];
 
         if (targetLayer) {
             const source = targetLayer.getSource();
             const allFeatures = source.getFeatures();
-            const routeFeatures = allFeatures.filter((feature) => feature.get("route") === "true");
 
-            if (routeFeatures.length > 0) {
+            if (allFeatures.length > 0) {
                 const extent = createEmpty();
-                routeFeatures.forEach((feature) => {
+                allFeatures.forEach((feature) => {
                     extend(extent, feature.getGeometry().getExtent());
                 });
-                map.olMap.getView().fit(extent, { padding: [50, 50, 50, 50], duration: 1000 });
+                // padding is top, right, bottom and left
+                map.olMap.getView().fit(extent, { padding: [300, 300, 300, 300], duration: 1000 });
             }
         }
     }
@@ -510,7 +519,7 @@ export function MapApp() {
     function styleDefaultBlue() {
         return new Style({
             stroke: new Stroke({
-                color: "rgba(0, 0, 255, 0.8)",
+                color: "#16a34a",
                 width: 5
             })
         });
@@ -591,12 +600,12 @@ export function MapApp() {
                 new Style({
                     image: new CircleStyle({
                         radius: 6,
-                        fill: new Fill({ color: "black" })
+                        fill: new Fill({ color: "#124a28" })
                     }),
                     text: new OLText({
                         text: "Start",
                         font: "12px Calibri,sans-serif",
-                        fill: new Fill({ color: "black" }),
+                        fill: new Fill({ color: "#042713" }),
                         stroke: new Stroke({ color: "white", width: 3 }),
                         offsetY: -15
                     })
@@ -621,12 +630,12 @@ export function MapApp() {
                 new Style({
                     image: new CircleStyle({
                         radius: 6,
-                        fill: new Fill({ color: "black" })
+                        fill: new Fill({ color: "#124a28" })
                     }),
                     text: new OLText({
                         text: "End",
                         font: "12px Calibri,sans-serif",
-                        fill: new Fill({ color: "black" }),
+                        fill: new Fill({ color: "#042713" }),
                         stroke: new Stroke({ color: "white", width: 3 }),
                         offsetY: -15
                     })
@@ -644,537 +653,155 @@ export function MapApp() {
     // --------------------------------------
 
     return (
-        <Flex height="100%" direction="column" overflow="hidden" width="100%">
-            <Flex
-                backgroundColor="white"
-                borderWidth="1px"
-                borderRadius="md"
-                boxShadow="sm"
-                padding={4}
-                margin={4}
-                maxWidth="2000px"
-                justifyContent="space-between"
-                alignItems="flex-start"
-            >
-                {/* Address Fields */}
-                <Box marginBottom="20px">
-                    <Text fontSize="lg" fontWeight="bold" marginBottom="10px">
-                        Enter Start and Destination Address
-                    </Text>
-                    <Input
-                        value={startAddress}
-                        onChange={(e) => setStartAddress(e.target.value)}
-                        placeholder="Enter your start address"
-                        style={{
-                            marginBottom: "16px"
-                        }}
-                    />
-                    <Input
-                        value={destinationAddress}
-                        onChange={(e) => setDestinationAddress(e.target.value)}
-                        placeholder="Enter your start address"
-                        style={{
-                            marginBottom: "16px"
-                        }}
-                    />
-                </Box>
-
-                {/* Slider and Buttons */}
-                <Flex ml={8} direction="row" alignItems="flex-start" maxWidth="400px">
-                    <Box mr={4}>
-                        <Text fontSize="lg" fontWeight="bold" mb={2}>
-                            Route Preference
-                        </Text>
-                        <Flex justifyContent="space-between" alignItems="center" mb={2}>
-                            <Text fontSize="2xl" role="img" aria-label="helmet-icons">
-                                <Image
-                                    src="./data/Helmet.png"
-                                    alt="Safety Icon"
-                                    boxSize="25px"
-                                    display="inline"
-                                />
-                            </Text>
-                            <Text fontSize="2xl" role="img" aria-label="rocket-icons">
-                                <Image
-                                    src="./data/Rocket.png"
-                                    alt="Fast Icon"
-                                    boxSize="25px"
-                                    display="inline"
-                                />
-                            </Text>
-                        </Flex>
-                        <Slider
-                            value={sliderValue}
-                            min={0}
-                            max={2}
-                            step={1}
-                            onChange={(val) => setSliderValue(val)}
-                        >
-                            <SliderTrack>
-                                <SliderFilledTrack />
-                            </SliderTrack>
-                            <SliderThumb />
-                        </Slider>
-                        <Text mt={2} textAlign="center">
-                            {sliderLabels[sliderValue]}
-                        </Text>
-                    </Box>
-                </Flex>
-
-                <Flex direction="column" alignItems="center">
-                    <Text fontSize="lg" fontWeight="bold" mb={5} textAlign="center">
-                        Start
-                    </Text>
-                    <Box position="relative" display="inline-block">
-                        {/* Spinner um den Button, wenn isLoading true ist */}
-                        {isLoading && (
-                            <Box
-                                position="absolute"
-                                top="45%"
-                                left="50%"
-                                transform="translate(-50%, -50%)"
-                                zIndex="1"
-                            >
-                                <Spinner
-                                    size="xl"
-                                    color="blue.500"
-                                    width="100px" // Zusätzliche Kontrolle der Breite
-                                    height="100px"
-                                />
-                            </Box>
-                        )}
-                        <Button
-                            colorScheme="green"
-                            mb={4}
-                            onClick={calculateRoute}
-                            borderRadius="full"
-                            w="75px"
-                            h="75px"
-                            isDisabled={isLoading || !startAddress || !destinationAddress} // Button deaktivieren bei isLoading
-                            position="relative"
-                            zIndex={isLoading ? "0" : "auto"}
-                        >
-                            Go!
-                        </Button>
-                    </Box>
-                </Flex>
-
-                {/* Route Rating */}
-                <Box maxWidth="400px">
-                    <Text fontSize="lg" fontWeight="bold" mb={2} textAlign="center">
-                        Route Rating
-                    </Text>
-                    <Input
-                        id="safetyRating"
-                        placeholder="Safety Rating (1.0 - 6.0)"
-                        value={safetyRating}
-                        textAlign={"center"}
-                        mb={4}
-                        readOnly={true}
-                        style={{
-                            backgroundColor: getSafetyRatingColor(
-                                parseFloat(safetyRating.split(" ")[2])
-                            )
-                        }}
-                    />
-                    <Input
-                        id="timeEfficiencyRating"
-                        placeholder="Distance (Time)"
-                        value={timeEfficiencyRating}
-                        textAlign={"center"}
-                        readOnly={true}
-                        maxWidth="1000px"
-                    />
-                </Box>
-
-                {/* Options */}
-                <Flex direction="column">
-                    <Text fontSize="lg" fontWeight="bold" mb={2} textAlign="center">
-                        Options
-                    </Text>
-                    <Button colorScheme="red" mb={4} onClick={resetInputs}>
-                        Reset Input
-                    </Button>
-                    <Box>
-                        <Flex direction="column" alignItems="center" mb={1}>
-                            <Text mb={2} textAlign="center">
-                                Show Street Safety Category
-                            </Text>
-                            <Switch
-                                size="lg"
-                                colorScheme="green"
-                                isDisabled={!isSwitchEnabled}
-                                isChecked={isSwitchChecked}
-                                onChange={(e) => setIsSwitchChecked(e.target.checked)}
-                            />
-                        </Flex>
-                    </Box>
-                </Flex>
-            </Flex>
-
-            {/* Map Container */}
-            <Box
-                backgroundColor="white"
-                borderWidth="1px"
-                borderRadius="lg"
-                boxShadow="lg"
-                overflow="hidden"
-                height="100%"
-                width="98.4%"
-                alignSelf="center"
-            >
+       
+        <Flex height="100vh" width="100vw" position="relative" overflow="hidden">
+            {/* Map as background */}
+            <Box position="absolute" top="0" left="0" right="0" bottom="0" zIndex="0">
                 <MapContainer
                     mapId={MAP_ID}
                     role="main"
                     aria-label={intl.formatMessage({ id: "ariaLabel.map" })}
                 >
-                    <MapAnchor position="top-left" horizontalGap={5} verticalGap={5}>
-                        {measurementIsActive && (
-                            <Box
-                                backgroundColor="white"
-                                borderWidth="1px"
-                                borderRadius="lg"
-                                padding={2}
-                                boxShadow="lg"
-                                role="top-left"
-                                aria-label={intl.formatMessage({ id: "ariaLabel.topLeft" })}
-                            >
-                                <Box role="dialog" aria-labelledby={measurementTitleId}>
-                                    <TitledSection
-                                        title={
-                                            <SectionHeading
-                                                id={measurementTitleId}
-                                                size="md"
-                                                mb={2}
-                                            >
-                                                {intl.formatMessage({ id: "measurementTitle" })}
-                                            </SectionHeading>
-                                        }
-                                    >
-                                        <Measurement mapId={MAP_ID} />
-                                    </TitledSection>
-                                </Box>
-                            </Box>
-                        )}
-                    </MapAnchor>
-
-                    <MapAnchor position="bottom-right" horizontalGap={10} verticalGap={30}>
-                        <Flex
-                            role="bottom-right"
-                            aria-label={intl.formatMessage({ id: "ariaLabel.bottomRight" })}
-                            direction="column"
-                            gap={1}
-                            padding={1}
-                        >
-                            <ToolButton
-                                label={intl.formatMessage({ id: "measurementTitle" })}
-                                icon={<PiRulerLight />}
-                                isActive={measurementIsActive}
-                                onClick={toggleMeasurement}
-                            />
+                    {/* Zoom & Measurement Tools */}
+                    <MapAnchor position="bottom-right" horizontalGap={10} verticalGap={70}> 
+                        <Flex direction="column" gap={2}>
                             <InitialExtent mapId={MAP_ID} />
-                            <ZoomIn mapId={MAP_ID} />
+                            <ZoomIn mapId={MAP_ID}  />
                             <ZoomOut mapId={MAP_ID} />
                         </Flex>
                     </MapAnchor>
-                    {/* Legende hinzufügen */}
-                    <MapAnchor position="top-right" horizontalGap={10} verticalGap={10}>
-                        <Box
-                            top="20px"
-                            left="20px"
-                            backgroundColor="white"
-                            padding="10px"
-                            borderRadius="8px"
-                            boxShadow="md"
-                            zIndex="10"
-                            opacity="0.7"
-                            visibility={isSwitchChecked ? "hidden" : "visible"}
-                            display={!isSwitchEnabled ? "none" : "block"}
-                        >
-                            <Text fontWeight="bold" marginBottom="4">
-                                Legend
-                            </Text>
-                            <Flex alignItems="center" marginBottom="2">
-                                <Box
-                                    width="16px"
-                                    height="16px"
-                                    backgroundColor="black"
-                                    marginRight="8px"
-                                    borderRadius="50%"
-                                ></Box>
-                                <Text>Start/End Point</Text>
-                            </Flex>
-                            <Divider marginBottom="2" />
-                            <Flex alignItems="center" marginBottom="2">
-                                <Box
-                                    width="16px"
-                                    height="16px"
-                                    backgroundColor="blue"
-                                    marginRight="8px"
-                                    borderRadius="50%"
-                                ></Box>
-                                <Text>Route</Text>
-                            </Flex>
-                        </Box>
-                    </MapAnchor>
-                    <MapAnchor position="top-right" horizontalGap={10} verticalGap={10}>
-                        <Box
-                            top="20px"
-                            left="20px"
-                            backgroundColor="white"
-                            padding="10px"
-                            borderRadius="8px"
-                            boxShadow="md"
-                            zIndex="10"
-                            opacity="0.7"
-                            visibility={isSwitchChecked ? "visible" : "hidden"}
-                            display={!isSwitchEnabled ? "none" : "block"}
-                        >
-                            <Text fontWeight="bold" marginBottom="4">
-                                Legend
-                            </Text>
-                            <Flex alignItems="center" marginBottom="2">
-                                <Box
-                                    width="16px"
-                                    height="16px"
-                                    backgroundColor="black"
-                                    marginRight="8px"
-                                    borderRadius="50%"
-                                ></Box>
-                                <Text>Start/End Point</Text>
-                            </Flex>
-                            <Divider marginBottom="2" />
-                            <Flex alignItems="center" marginBottom="2">
-                                <Box
-                                    width="16px"
-                                    height="16px"
-                                    backgroundColor="rgba(2,157,255)"
-                                    marginRight="8px"
-                                    borderRadius="50%"
-                                    opacity={1.0}
-                                ></Box>
-                                <Text>Separated Bike Lane</Text>
-                            </Flex>
-                            <Flex alignItems="center" marginBottom="2">
-                                <Box
-                                    width="16px"
-                                    height="16px"
-                                    backgroundColor="limegreen"
-                                    marginRight="8px"
-                                    borderRadius="50%"
-                                    opacity={1.0}
-                                ></Box>
-                                <Text>Integrated Bike Lane</Text>
-                            </Flex>
-                            <Flex alignItems="center" marginBottom="2">
-                                <Box
-                                    width="16px"
-                                    height="16px"
-                                    backgroundColor="orange"
-                                    marginRight="8px"
-                                    borderRadius="50%"
-                                    opacity={1.0}
-                                ></Box>
-                                <Text>Calm Street</Text>
-                            </Flex>
-                            <Flex alignItems="center">
-                                <Box
-                                    width="16px"
-                                    height="16px"
-                                    backgroundColor="red"
-                                    marginRight="8px"
-                                    borderRadius="50%"
-                                    opacity={1.0}
-                                ></Box>
-                                <Text>Unsafe Street</Text>
-                            </Flex>
-                        </Box>
-                    </MapAnchor>
                 </MapContainer>
+
             </Box>
 
-            {/* Footer */}
-            <Flex
-                role="region"
-                aria-label={intl.formatMessage({ id: "ariaLabel.footer" })}
-                gap={3}
-                alignItems="center"
-                justifyContent="center"
+            {/* Floating Panel – Top Left */}
+            <Box
+                position="absolute"
+                top="20px"
+                left="20px"
+                zIndex="1000"
+                backgroundColor="whiteAlpha.900"
+                backdropFilter="blur(8px)"
+                borderRadius="lg"
+                p={5}
+                boxShadow="2xl"
+                maxW={{ base: "90%", md: "350px" }}
+                w="100%"
             >
-                <CoordinateViewer mapId={MAP_ID} precision={2} />
-                <ScaleBar mapId={MAP_ID} />
-                <ScaleViewer mapId={MAP_ID} />
-            </Flex>
+                <Flex direction="column" gap={4}>
+                    <Input
+                        value={startAddress}
+                        placeholder="Start Address"
+                        onChange={(e) => setStartAddress(e.target.value)}
+                    />
+
+                    <Input
+                        value={destinationAddress}
+                        placeholder="Destination"
+                        onChange={(e) => setDestinationAddress(e.target.value)}
+                        isDisabled={!startAddress}
+                    />
+
+                    <Flex align="center" justify="space-between" gap={4}>
+                        <Flex direction="column" align="center">
+                            <Text fontSize="sm" mb={1}>Safe Route</Text>
+                            <Switch
+                                size="lg"
+                                colorScheme="green"
+                                isChecked={sliderValue === 0}
+                                onChange={(e) => setSliderValue(e.target.checked ? 0 : 2)}
+                            />
+                        </Flex>
+
+                        <Button
+                            colorScheme="green"
+                            borderRadius="full"
+                            size="lg"
+                            px={6}
+                            isLoading={isLoading}
+                            isDisabled={!startAddress || !destinationAddress}
+                            onClick={() => {
+                                calculateRoute();
+                            }}
+                        >
+          Go!
+                        </Button>
+                    </Flex>
+                </Flex>
+            </Box>
+
+            {/* Route Info Popup – Bottom Left */}
+            {showPopup && (
+                isMobilePortrait ? (
+                    <AnimatePresence>
+                        <motion.div
+                            style={{
+                                position: "fixed",
+                                bottom: "0",
+                                left: "0",
+                                right: "0",
+                                zIndex: "1000",
+                                backgroundColor: "white",
+                                borderTopLeftRadius: "1.5rem",
+                                borderTopRightRadius: "1.5rem",
+                                height: `${panelHeight}px`,
+                                padding: "1.25rem",
+                                boxShadow: "0 -2px 10px rgba(0,0,0,0.2)"
+                            }}
+                            
+                            drag="y"
+                            dragConstraints={{ top: 0, bottom: 110 }}
+                        >
+                            <Box textAlign="center" mb={5}>
+                                <Box
+                                    width="40px"
+                                    height="4px"
+                                    backgroundColor="gray.400"
+                                    borderRadius="full"
+                                    mx="auto"
+                                />
+                            </Box>
+                  
+                            <Flex direction="column" gap={3} justify="space-between" align="center">
+                                {timeEfficiencyRating || "Time/Distance"}
+                                <Button  colorScheme="red" onClick={() => { resetInputs(); setShowPopup(false); }}>Reset</Button>                                       
+                                
+                            </Flex>
+                        </motion.div>
+                    </AnimatePresence>
+                ) : (
+                // Desktop / Landscape Mode
+                    <Flex
+                        position="absolute"
+                        bottom="20px"
+                        left="20px"
+                        zIndex="1000"
+                        direction="row"
+                        gap={4}
+                        align="start"
+                    >
+                        <Box
+                            backgroundColor="whiteAlpha.900"
+                            backdropFilter="blur(6px)"
+                            borderRadius="lg"
+                            p={4}
+                            boxShadow="xl"
+                            minW="150px"
+                            maxW="450px"
+                            height="120px"
+                        >
+                            <Flex direction="column" gap={3} justify="space-between" align="center">
+                                {timeEfficiencyRating || "Time/Distance"}
+                            
+                                <Button  colorScheme="red" onClick={() => { resetInputs(); setShowPopup(false); }}>
+                        Reset
+                                </Button>                                       
+                                
+                            </Flex>
+                        </Box>
+                    </Flex>
+                )
+            )}
         </Flex>
     );
 }
-
-/*
-            Dieser Code wird benötigt um category hinzuzufügen. wird in der fertigen applikation aber nicht benötigt.
-            */
-/*
- // Sobald die Daten ready sind ...
- vectorSource2.once('change', function () {
-
-
-   if (vectorSource2.getState() === 'ready') {
-     const features = vectorSource2.getFeatures();
-     console.log(features)
-
-     const relevantProps = [
-       'bicycle',
-       'cycleway',
-       'cycleway_left',
-       'cycleway_right',
-       'bicycle_road',
-       'cycleway_right_bicycle',
-       'cycleway_left_bicycle'
-     ];
-
-     // Kategorien
-     const withoutCycleHighwayGroup = [];
-     const withoutCycleOther = [];
-     const cyclePropsYesDesignated = [];
-     const cyclePropsOther = [];
-
-     features.forEach((feature) => {
-       const properties = feature.getProperties();
-       console.log(properties)
-
-       // Prüfen, ob eine relevante Rad-Property vorhanden ist
-       const hasCycleProp = relevantProps.some((prop) => {
-         return properties[prop] != null && properties[prop] !== '';
-       });
-
-       if (!hasCycleProp) {
-         // Keine Radinfrastruktur, weiter unterteilen nach highway-Werten
-         const highway = properties.highway;
-         if (
-           highway === 'residential' ||
-           highway === 'living_street' ||
-           highway === 'bridleway' ||
-           highway === 'track'
-         ) {
-           feature.set('category_number', 2);
-           withoutCycleHighwayGroup.push(feature);
-         } else {
-           feature.set('category_number', 1);
-           withoutCycleOther.push(feature);
-         }
-       } else {
-         // Hat Radinfrastruktur, nun verfeinern:
-         const bicycleValue = properties.bicycle;
-         const bicycleRoadValue = properties.bicycle_road;
-
-         const isYesOrDesignated =
-           bicycleValue === 'yes' ||
-           bicycleValue === 'designated' ||
-           bicycleRoadValue === 'yes' ||
-           bicycleRoadValue === 'designated';
-
-         if (isYesOrDesignated) {
-           feature.set('category_number', 4);
-           cyclePropsYesDesignated.push(feature);
-         } else {
-           feature.set('category_number', 3);
-           cyclePropsOther.push(feature);
-         }
-       }
-
-       // Style anwenden
-       streetDataLayer.setStyle(styleByCategory);
-     });
-
-     const geoJSONFormat = new GeoJSON();
-
-     // Features als GeoJSON exportieren
-     const geojsonStr = geoJSONFormat.writeFeatures(features);
-     const blob = new Blob([geojsonStr], { type: 'application/json' });
-
-     // URL für den Blob erstellen
-     const url = URL.createObjectURL(blob);
-
-     // Temporären Link erstellen
-     const link = document.createElement('a');
-     link.href = url;
-     link.download = 'exportedGeojsonRouting.geojson';
-
-     // Link zum Dokument hinzufügen und Klick simulieren
-     document.body.appendChild(link);
-     link.click();
-
-     // Link wieder entfernen
-     document.body.removeChild(link);
-
-     // URL freigeben
-     URL.revokeObjectURL(url);
-   }
- });
- */
-
-/* 
-Dieser Code wird benötigt um den Graphen zu erstellen. 
-IN der normalen Applikation jedoch nicht notwendig, weil dieser dann schon erstellt wurde:
-
-fetch('./data/exportedGeojsonRouting (2).geojson') // Relativer Pfad zur Datei
-  .then((response) => {
-    if (!response.ok) {
-      throw new Error('Fehler beim Laden der GeoJSON-Datei');
-    }
-    return response.json();
-  })
-  .then((geojsonData) => {
-    const graph = buildGraphFromGeoJSON(geojsonData);
-    const graphObject = Object.fromEntries(graph); // Konvertiere Map in ein einfaches Objekt
-
-    const graphJSON = JSON.stringify(graphObject, null, 2); // Formatiere als JSON
-
-    // JSON-Datei erstellen und Download auslösen
-    const blob = new Blob([graphJSON], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'graph.json';
-    link.click();
-
-    // Graph-Statistik ausgeben
-    let edgeCount = 0;
-    graph.forEach((edges) => {
-      edgeCount += edges.length;
-    });
-  })
-  .catch((error) => console.error('Fehler:', error));
-  
-  
-  function buildGraphFromGeoJSON(geojson) {
-        const graph = new Map();
-
-        geojson.features.forEach((feature) => {
-            const geometry = feature.geometry;
-            const properties = feature.properties;
-
-            if (geometry.type === "LineString") {
-                const coordinates = geometry.coordinates;
-                const length = properties.length;
-                const category = properties.category_number;
-
-                
-                for (let i = 0; i < coordinates.length - 1; i++) {
-                    const fromCoord = coordToId(coordinates[i]); 
-                    const toCoord = coordToId(coordinates[i + 1]);
-
-                    if (!graph.has(fromCoord)) {
-                        graph.set(fromCoord, []);
-                    }
-                    graph.get(fromCoord).push({node: toCoord, length, category});
-
-                    if (!graph.has(toCoord)) {
-                        graph.set(toCoord, []);
-                    }
-                    graph.get(toCoord).push({node: fromCoord, length, category});
-                }
-            }
-        });
-
-        return graph;
-    }
-*/
