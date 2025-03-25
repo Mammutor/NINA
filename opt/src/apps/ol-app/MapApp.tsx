@@ -37,11 +37,10 @@ import CircleStyle from "ol/style/Circle";
 import { transform } from "ol/proj";
 import { Image } from "@chakra-ui/react";
 import Feature from "ol/Feature.js";
-import LineString from "ol/geom/LineString.js";
-import Select from "react-select";
 import { Point } from "ol/geom";
 import { createEmpty, extend } from "ol/extent";
 import { Divider } from "@chakra-ui/icons";
+import proj4 from "proj4";
 
 /**
  * Main component for the map application. It manages state for:
@@ -73,7 +72,7 @@ export function MapApp() {
     const [nearestNodeMapping, setNearestNodeMapping] = useState({});
     const [isSwitchEnabled, setIsSwitchEnabled] = useState(false);
     const [isSwitchChecked, setIsSwitchChecked] = useState(false);
-    const [mapGraph, setMapGraph] = useState(new Map());
+    const [mapGraph, setMapGraph] = useState();
     const [isLoading, setIsLoading] = useState(false);
 
     const sliderLabels = ["Safest", "Balanced", "Fastest"];
@@ -167,46 +166,13 @@ export function MapApp() {
         // Route layer for the final path
         const routeVectorLayer = new VectorLayer({
             source: new VectorSource(),
-            style: (feature) =>
-                isSwitchChecked ? styleByCategory(feature) : styleDefaultBlue(feature)
+            visible: true,
+            style: styleDefaultBlue(),
         });
         routeVectorLayer.set("id", "routeLayer");
         map.olMap.addLayer(routeVectorLayer);
 
-        // Add planned Areas Layer
-        const layers = map.olMap.getLayers().getArray();
-        let plannedAreasLayer = layers.find((layer) => layer.get("id") === "plannedAreasLayer");
-
-        if (!plannedAreasLayer) {
-            const plannedAreasVectorSource = new VectorSource({
-                url: "./data/plannedAreas.geojson",
-                format: new GeoJSON({
-                    dataProjection: "EPSG:3857",
-                    featureProjection: "EPSG:3857"
-                })
-            });
-
-            plannedAreasLayer = new VectorLayer({
-                source: plannedAreasVectorSource,
-                visible: true
-            });
-
-            plannedAreasLayer.set("id", "plannedAreasLayer");
-            map.olMap.addLayer(plannedAreasLayer);
-        }
-
-        // Always apply the correct style
-        plannedAreasLayer.setStyle(
-            new Style({
-                fill: new Fill({
-                    color: "rgba(108,121,115,0.2)" // Semi-transparent gray
-                }),
-                stroke: new Stroke({
-                    color: "#000000",
-                    width: 1
-                })
-            })
-        );
+           
 
         // Address layer
         const addressVectorSource = new VectorSource({
@@ -235,7 +201,7 @@ export function MapApp() {
         const streetDataSource = new VectorSource({
             url: "./data/exportedGeojsonRouting (2).geojson",
             format: new GeoJSON({
-                dataProjection: "EPSG:3857",
+                dataProjection: "EPSG:4326",
                 featureProjection: "EPSG:3857"
             })
         });
@@ -254,49 +220,36 @@ export function MapApp() {
      * Click-Event-Listener for the map to set the end address.
      */
     useEffect(() => {
-        if (!map || addressSuggestions.length === 0 || Object.keys(coordinatesMap).length === 0) {
+        if (!map) {
             return;
         }
     
         console.log("✅ Map und Daten verfügbar – Klick-Event wird registriert!");
     
-        const handleClick = (event) => {
+        const handleClick = async (event) => {
             console.log("📍 Map clicked at:", event.coordinate);
-    
-            let nearestAddress = null;
-            let minDistance = Infinity;
-    
-            addressSuggestions.forEach((address) => {
-                const coords = coordinatesMap[address]?.split(",").map(Number) || [];
-    
-                if (coords.length < 2) {
-                    console.warn(`❌ Ungültige Koordinaten für Adresse: ${address}`);
-                    return;
-                }
-    
-                const distance = calculateDistance(
-                    `${event.coordinate[0]},${event.coordinate[1]}`,
-                    `${coords[0]},${coords[1]}`
-                );
-    
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    nearestAddress = address;
-                }
-            });
-    
-            if (nearestAddress) {
+            const eventCoordinate = proj4("EPSG:3857", "EPSG:4326", event.coordinate);
+
+            try {
+                const response = await fetch("https://api.transitous.org/api/v1/reverse-geocode?place="+eventCoordinate[1]+","+eventCoordinate[0]);
+                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+        
+                const locationdata = await response.json();         
+                const address = locationdata[0].name;
                 if (startCoordinates.length === 0) {
-                    console.log("🟢 Startpunkt gesetzt:", nearestAddress);
-                    setStartId(nearestNodeMapping[nearestAddress]);
-                    setStartAddress(nearestAddress);
-                    setStartCoordinates(coordinatesMap[nearestAddress].split(",").map(Number));
+                    console.log("🟢 Startpunkt gesetzt:", address);
+                    setStartId(locationdata[0].id);
+                    setStartAddress(address);
+                    setStartCoordinates(event.coordinate);
                 } else {
-                    console.log("🔴 Endpunkt gesetzt:", nearestAddress);
-                    setEndId(nearestNodeMapping[nearestAddress]);
-                    setDestinationAddress(nearestAddress);
-                    setEndCoordinates(coordinatesMap[nearestAddress].split(",").map(Number));
+                    console.log("🔴 Endpunkt gesetzt:", address);
+                    setEndId(locationdata[0].id);
+                    setDestinationAddress(address);
+                    setEndCoordinates(event.coordinate);
+
                 }
+            } catch (error) {
+                console.error("Error fetching route:", error);
             }
         };
     
@@ -326,80 +279,9 @@ export function MapApp() {
         if (map?.olMap) {
             const layers = map.olMap.getLayers().getArray();
             const routeLayer = layers.find((layer) => layer.get("id") === "routeLayer");
-            if (routeLayer) {
-                routeLayer.setStyle((feature) =>
-                    isSwitchChecked ? styleByCategory(feature) : styleDefaultBlue(feature)
-                );
-            }
+            
         }
     }, [isSwitchChecked, map]);
-
-    // --------------------------------------
-    //  Address Data and Filtering
-    // --------------------------------------
-
-    /**
-     * Loads the address data from CSV and stores it in several mappings:
-     *  - address -> area
-     *  - address -> nearest node
-     *  - address -> coordinates
-     *  - suggestions array for the UI
-     */
-    function fillAdressInput() {
-        fetch("./data/Matched_Addresses_in_Planned_Areas.csv")
-            .then((response) => response.text())
-            .then((data) => {
-                const rows = data.split("\n").slice(1); // skip header
-                const mapping = {};
-                const nearestNodeMap = {};
-                const coordsMap = {};
-                const addresses = [];
-
-                rows.forEach((row) => {
-                    const [address, plannedAreaId, nearest_node, coordinates] = row.split(";");
-                    if (address && plannedAreaId) {
-                        const trimmedAddress = address.trim();
-                        mapping[trimmedAddress] = plannedAreaId.trim();
-
-                        if (nearest_node) {
-                            nearestNodeMap[trimmedAddress] = nearest_node.trim();
-                        }
-                        if (coordinates) {
-                            coordsMap[trimmedAddress] = coordinates.trim();
-                        }
-                        addresses.push(trimmedAddress);
-                    }
-                });
-
-                setAddressToAreaMapping(mapping);
-                setNearestNodeMapping(nearestNodeMap);
-                setAddressSuggestions(addresses);
-                setCoordinatesMap(coordsMap);
-            })
-            .catch((error) => console.error("Error loading CSV data:", error));
-    }
-
-    /**
-     * Filters destination addresses based on the selected start address's area.
-     */
-    useEffect(() => {
-        if (startAddress) {
-            const selectedAreaId = addressToAreaMapping[startAddress];
-            const filtered = Object.keys(addressToAreaMapping).filter(
-                (address) => addressToAreaMapping[address] === selectedAreaId
-            );
-            setFilteredDestinations(filtered);
-        } else {
-            setFilteredDestinations([]);
-        }
-    }, [startAddress, addressToAreaMapping]);
-
-    /**
-     * Initial data load for addresses from CSV.
-     */
-    useEffect(() => {
-        fillAdressInput();
-    }, []);
 
     // --------------------------------------
     //  Routing Calculation
@@ -422,353 +304,62 @@ export function MapApp() {
                 return [1, 1, 1];
         }
     }
-
+    
     /**
      * Main function to calculate and display the route between startId and endId.
      */
-    function calculateRoute() {
+    async function calculateRoute() {
         setIsSwitchEnabled(true);
         setIsLoading(true);
+        const transformedStartCoordinate = proj4("EPSG:3857", "EPSG:4326", startCoordinates);
+        const transformedEndCoordinate = proj4("EPSG:3857", "EPSG:4326", endCoordinates);
+        console.log("🚴‍♂️ Startpunkt:", transformedStartCoordinate);
 
-        // Calculate approximate distance (in meters) between the addresses.
-        let distance = calculateDistance(startId, endId);
-        // Increase "abort distance" to accommodate potential route expansions.
-        distance *= 2;
+    
+        // JSON-Objekt für die Route
+        const requestData = {
+            locations: [
+                { lat: transformedStartCoordinate[1], lon: transformedStartCoordinate[0] },
+                { lat: transformedEndCoordinate[1], lon: transformedEndCoordinate[0] }
+            ],
+            costing: "bicycle",
+            costing_oprions: { bicycle: { use_roads: 1, use_hills: 1, use_cycleways: 1 } },
+            directions_options: { units: "kilometers" },
+            shape_format: "geojson",
+            format: "osrm",
+        };
+    
+        // JSON-Objekt als URL-Parameter kodieren
+        const query = encodeURIComponent(JSON.stringify(requestData));
+        const valhallaUrl = `https://valhalla1.openstreetmap.de/route?json=${query}`;
+        console.log("🔗 Valhalla URL:", valhallaUrl);
+        try {
+            const response = await fetch(valhallaUrl);
+            if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+    
+            const data = await response.json();
+            const processeddata = data.routes[0];
 
-        const weightVector = getWeightVector(sliderValue);
-
-        fetch("./data/graph (40).json")
-            .then((response) => {
-                if (!response.ok) {
-                    throw new Error("Error loading the file");
-                }
-                return response.json();
-            })
-            .then((graphObject) => {
-                const calculatedGraph = new Map(Object.entries(graphObject));
-                setMapGraph(calculatedGraph);
-
-                const paretoFront = new Map();
-                paretoFront.set(startId, [
-                    {
-                        costVector: new Array(5).fill(0),
-                        predecessor: null
-                    }
-                ]);
-
-                const queue = [];
-                queue.push({ node: startId, costVector: paretoFront.get(startId)[0].costVector });
-
-                // Pareto search
-                while (queue.length > 0) {
-                    const current = queue.shift();
-                    const { node: currentNode, costVector: currentCostVec } = current;
-
-                    // Skip if we exceed distance threshold
-                    if (currentCostVec[4] > distance) {
-                        continue;
-                    }
-
-                    const edges = calculatedGraph.get(currentNode) || [];
-                    edges.forEach((edge) => {
-                        const nextNode = edge.node;
-                        const edgeCostVec = getUnweightedCostVector(
-                            edge.length,
-                            edge.category,
-                            weightVector
-                        );
-                        const newCostVec = vectorAdd(currentCostVec, edgeCostVec);
-
-                        if (!paretoFront.has(nextNode)) {
-                            paretoFront.set(nextNode, []);
-                        }
-                        const currentPareto = paretoFront.get(nextNode);
-
-                        let dominatedByExisting = false;
-                        const dominatingIndices = [];
-
-                        for (let i = 0; i < currentPareto.length; i++) {
-                            const existingVec = currentPareto[i].costVector;
-                            if (dominates(existingVec, newCostVec)) {
-                                dominatedByExisting = true;
-                                break;
-                            }
-                            if (dominates(newCostVec, existingVec)) {
-                                dominatingIndices.push(i);
-                            }
-                        }
-
-                        if (!dominatedByExisting) {
-                            // Remove vectors dominated by the new one
-                            for (let i = dominatingIndices.length - 1; i >= 0; i--) {
-                                currentPareto.splice(dominatingIndices[i], 1);
-                            }
-                            currentPareto.push({
-                                costVector: newCostVec,
-                                predecessor: currentNode
-                            });
-                            queue.push({ node: nextNode, costVector: newCostVec });
-                        }
-                    });
-                }
-
-                if (!paretoFront.has(endId)) {
-                    console.error("No valid route to the destination found.");
-                } else {
-                    const endPareto = paretoFront.get(endId);
-                    const bestPath = endPareto.reduce((best, entry) => {
-                        return entry.costVector[0] < best.costVector[0] ? entry : best;
-                    }, endPareto[0]);
-
-                    // Reconstruct and highlight
-                    const pathNodes = reconstructPath(paretoFront, startId, endId, calculatedGraph);
-                    highlightPath(
-                        [pathNodes.find((p) => p.costVector === bestPath.costVector)],
-                        calculatedGraph
-                    );
-                    zoomToFeatures();
-                }
-                setIsLoading(false);
-            })
-            .catch((error) => {
-                setIsLoading(false);
-                console.error("Error loading graph data:", error);
+            const geojsonFeature = {
+                type: "Feature",
+                properties: {},//ggf. weitere properties ergänzen
+                geometry: processeddata.geometry
+            };
+            const features = new GeoJSON().readFeature(geojsonFeature, {
+                dataProjection: "EPSG:4326",
+                featureProjection: "EPSG:3857"
             });
-    }
 
-    /**
-     * Computes an unweighted cost vector for a given edge.
-     * @param {number} length - Edge length in meters.
-     * @param {number} category - Category number (1 to 4).
-     * @param {number[]} weights - Weight vector based on user preference.
-     * @returns {number[]} Cost vector of length 5.
-     */
-    function getUnweightedCostVector(length, category, weights) {
-        const costVector = new Array(5).fill(0);
-        costVector[4] = length;
-
-        switch (category) {
-            case 1:
-                // Red
-                costVector[3] = length;
-                costVector[2] = costVector[3] * weights[2];
-                costVector[1] = costVector[2] * weights[1];
-                costVector[0] = costVector[1] * weights[0];
-                break;
-            case 2:
-                // Orange
-                costVector[2] = length;
-                costVector[1] = costVector[2] * weights[1];
-                costVector[0] = costVector[1] * weights[0];
-                break;
-            case 3:
-                // Light green
-                costVector[1] = length;
-                costVector[0] = costVector[1] * weights[0];
-                break;
-            case 4:
-                // Green
-                costVector[0] = length;
-                break;
-            default:
-                break;
+            const routeLayer = map.olMap.getLayers().getArray().find((layer) => layer.get("id") === "routeLayer");
+            const source = routeLayer.getSource();
+            source.clear();
+            source.addFeature(features);            
+    
+        } catch (error) {
+            console.error("Error fetching route:", error);
+        } finally {
+            setIsLoading(false);
         }
-        return costVector;
-    }
-
-    /**
-     * Checks if cost vector A dominates cost vector B in a Pareto sense.
-     * @param {number[]} vecA - Cost vector A.
-     * @param {number[]} vecB - Cost vector B.
-     * @returns {boolean} True if A dominates B, otherwise false.
-     */
-    function dominates(vecA, vecB) {
-        let strictlyBetter = false;
-        for (let i = 0; i < vecA.length; i++) {
-            if (vecA[i] > vecB[i]) {
-                return false;
-            }
-            if (vecA[i] < vecB[i]) {
-                strictlyBetter = true;
-            }
-        }
-        return strictlyBetter;
-    }
-
-    /**
-     * Adds two cost vectors element-wise.
-     * @param {number[]} vecA - First cost vector.
-     * @param {number[]} vecB - Second cost vector.
-     * @returns {number[]} Summed cost vector.
-     */
-    function vectorAdd(vecA, vecB) {
-        return vecA.map((val, idx) => val + vecB[idx]);
-    }
-
-    /**
-     * Reconstructs the paths from the Pareto front for a given start and end node.
-     * @param {Map} paretoFront - Pareto front map.
-     * @param {string} start - Start node ID.
-     * @param {string} end - End node ID.
-     * @param {Map<string, any>} graph - The routing graph as a map.
-     * @returns {object[]} Array of path objects containing { path: string[], costVector: number[] }.
-     */
-    function reconstructPath(paretoFront, start, end, graph) {
-        const results = [];
-        const endPareto = paretoFront.get(end);
-        if (!endPareto) {
-            console.error("No path to the destination node found.");
-            return results;
-        }
-
-        endPareto.forEach((entry) => {
-            const path = [];
-            let currentEntry = entry;
-            let currentNode = end;
-
-            while (currentEntry) {
-                path.push(currentNode);
-                currentNode = currentEntry.predecessor;
-                if (!currentNode) break;
-
-                const predecessorPareto = paretoFront.get(currentNode);
-                if (!predecessorPareto) {
-                    console.error("No Pareto entry for predecessor node:", currentNode);
-                    break;
-                }
-
-                currentEntry = predecessorPareto.find((e) =>
-                    arraysEqual(
-                        vectorAdd(
-                            e.costVector,
-                            getEdgeCost(currentNode, path[path.length - 1], graph)
-                        ),
-                        currentEntry.costVector
-                    )
-                );
-            }
-
-            results.push({
-                path: path.reverse(),
-                costVector: entry.costVector
-            });
-        });
-
-        return results;
-    }
-
-    /**
-     * Checks if two arrays are equal in length and elements.
-     * @param {number[]} arr1 - First array.
-     * @param {number[]} arr2 - Second array.
-     * @returns {boolean} True if arrays are equal, otherwise false.
-     */
-    function arraysEqual(arr1, arr2) {
-        if (arr1.length !== arr2.length) return false;
-        return arr1.every((val, idx) => val === arr2[idx]);
-    }
-
-    /**
-     * Retrieves the cost vector for a given edge in the graph.
-     * @param {string} fromNode - The origin node ID.
-     * @param {string} toNode - The destination node ID.
-     * @param {Map<string, any>} graph - The routing graph.
-     * @returns {number[] | null} The cost vector or null if not found.
-     */
-    function getEdgeCost(fromNode, toNode, graph) {
-        const edges = graph.get(fromNode) || [];
-        const edge = edges.find((e) => e.node === toNode);
-        return edge
-            ? getUnweightedCostVector(edge.length, edge.category, getWeightVector(sliderValue))
-            : null;
-    }
-
-    /**
-     * Highlights the chosen path(s) on the map.
-     * Draws line features for the route and lines between address points and route start/end.
-     * Also updates safety/time rating states.
-     *
-     * @param {object[]} paths - Array of path objects from reconstructPath().
-     * @param {Map<string, any>} graph - The routing graph as a map.
-     */
-    function highlightPath(paths, graph) {
-        const layers = map.olMap.getLayers().getArray();
-        const targetLayer = layers.find((layer) => layer.get("id") === "routeLayer");
-
-        if (!targetLayer) {
-            console.error('Layer with ID "routeLayer" not found.');
-            return;
-        }
-
-        const source = targetLayer.getSource();
-        source.clear();
-
-        paths.forEach((singlePath) => {
-            const routeSegments = [];
-            for (let i = 0; i < singlePath.path.length - 1; i++) {
-                const fromNode = singlePath.path[i];
-                const toNode = singlePath.path[i + 1];
-                const edges = graph.get(fromNode);
-                if (!edges) continue;
-
-                const edge = edges.find((e) => e.node === toNode);
-                if (!edge) continue;
-
-                const cat = edge.category;
-                const fromCoord = fromNode.split(",").map(Number);
-                const toCoord = toNode.split(",").map(Number);
-                const lineSegment = new LineString([fromCoord, toCoord]);
-                const segmentFeature = new Feature({
-                    geometry: lineSegment
-                });
-
-                segmentFeature.set("category_number", cat);
-                segmentFeature.set("route", "true");
-                routeSegments.push(segmentFeature);
-            }
-            source.addFeatures(routeSegments);
-
-            // Lines from addresses to route start/end
-            if (startId && startCoordinates && endId && endCoordinates) {
-                const startIdCoordinates = startId.split(",").map(Number);
-                const endIdCoordinates = endId.split(",").map(Number);
-                const startLineString = new LineString([startCoordinates, startIdCoordinates]);
-                const endLineString = new LineString([endCoordinates, endIdCoordinates]);
-
-                let addressToRouteLayer = layers.find(
-                    (layer) => layer.get("id") === "addressToRouteLayer"
-                );
-                if (!addressToRouteLayer) {
-                    addressToRouteLayer = new VectorLayer({
-                        source: new VectorSource(),
-                        style: new Style({
-                            stroke: new Stroke({
-                                color: "lightblue",
-                                width: 6,
-                                lineDash: [1, 10]
-                            })
-                        })
-                    });
-                    addressToRouteLayer.set("id", "addressToRouteLayer");
-                    map.olMap.addLayer(addressToRouteLayer);
-                }
-                const addressToRouteSource = addressToRouteLayer.getSource();
-                addressToRouteSource.clear();
-                addressToRouteSource.addFeatures([
-                    new Feature({ geometry: startLineString }),
-                    new Feature({ geometry: endLineString })
-                ]);
-            }
-
-            // Update Ratings
-            const estimatedTime = calculateEstimatedTime(paths[0].costVector[4]);
-            setTimeEfficiencyRating(
-                `${(paths[0].costVector[4] / 1000).toFixed(2)} km (~${estimatedTime} min)`
-            );
-            setSafetyRating(
-                `Safety Rating: ${calculateSafetyScore(paths[0].costVector).toFixed(1)}`
-            );
-        });
     }
 
     /**
@@ -1070,60 +661,20 @@ export function MapApp() {
                     <Text fontSize="lg" fontWeight="bold" marginBottom="10px">
                         Enter Start and Destination Address
                     </Text>
-                    <Select
-                        value={startId ? { value: startId, label: startAddress } : null}
-                        options={addressSuggestions.map((address) => ({
-                            value: nearestNodeMapping[address],
-                            label: address
-                        }))}
-                        onChange={(selectedOption) => {
-                            setStartId(selectedOption ? selectedOption.value : "");
-                            setStartAddress(selectedOption ? selectedOption.label : "");
-                            if (selectedOption && coordinatesMap[selectedOption.label]) {
-                                const coords = coordinatesMap[selectedOption.label]
-                                    .split(",")
-                                    .map(Number);
-                                setStartCoordinates(coords);
-                            } else {
-                                setStartCoordinates([]);
-                            }
-                        }}
+                    <Input
+                        value={startAddress}
+                        onChange={(e) => setStartAddress(e.target.value)}
                         placeholder="Enter your start address"
-                        isClearable
-                        styles={{
-                            container: (provided) => ({
-                                ...provided,
-                                marginBottom: "16px"
-                            })
+                        style={{
+                            marginBottom: "16px"
                         }}
                     />
-
-                    <Select
-                        value={endId ? { value: endId, label: destinationAddress } : null}
-                        options={filteredDestinations.map((address) => ({
-                            value: nearestNodeMapping[address],
-                            label: address
-                        }))}
-                        onChange={(selectedOption) => {
-                            setEndId(selectedOption ? selectedOption.value : "");
-                            setDestinationAddress(selectedOption ? selectedOption.label : "");
-                            if (selectedOption && coordinatesMap[selectedOption.label]) {
-                                const coords = coordinatesMap[selectedOption.label]
-                                    .split(",")
-                                    .map(Number);
-                                setEndCoordinates(coords);
-                            } else {
-                                setEndCoordinates([]);
-                            }
-                        }}
-                        placeholder="Enter your destination address"
-                        isClearable
-                        isDisabled={!startAddress}
-                        styles={{
-                            container: (provided) => ({
-                                ...provided,
-                                marginBottom: "16px"
-                            })
+                    <Input
+                        value={destinationAddress}
+                        onChange={(e) => setDestinationAddress(e.target.value)}
+                        placeholder="Enter your start address"
+                        style={{
+                            marginBottom: "16px"
                         }}
                     />
                 </Box>
