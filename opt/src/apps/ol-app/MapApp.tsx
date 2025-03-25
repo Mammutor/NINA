@@ -7,14 +7,26 @@ import {
     Button,
     Flex,
     Input,
+    Slider,
+    SliderFilledTrack,
+    SliderThumb,
+    SliderTrack,
     Switch,
-    Text
+    Text,
+    Spinner
 } from "@open-pioneer/chakra-integration";
 import { MapAnchor, MapContainer, useMapModel } from "@open-pioneer/map";
+import { ScaleBar } from "@open-pioneer/scale-bar";
 import { InitialExtent, ZoomIn, ZoomOut } from "@open-pioneer/map-navigation";
 import { useIntl } from "open-pioneer:react-hooks";
+import { CoordinateViewer } from "@open-pioneer/coordinate-viewer";
+import { SectionHeading, TitledSection } from "@open-pioneer/react-utils";
+import { ToolButton } from "@open-pioneer/map-ui-components";
+import { ScaleViewer } from "@open-pioneer/scale-viewer";
 import { MAP_ID } from "./services";
-import { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
+import { Measurement } from "@open-pioneer/measurement";
+import { PiRulerLight } from "react-icons/pi";
 import VectorSource from "ol/source/Vector";
 import VectorLayer from "ol/layer/Vector.js";
 import GeoJSON from "ol/format/GeoJSON";
@@ -23,9 +35,15 @@ import Fill from "ol/style/Fill";
 import Stroke from "ol/style/Stroke";
 import CircleStyle from "ol/style/Circle";
 import { transform } from "ol/proj";
+import { background, Image, useDisclosure } from "@chakra-ui/react";
 import Feature from "ol/Feature.js";
+import LineString from "ol/geom/LineString.js";
+import Select from "react-select";
 import { Point } from "ol/geom";
 import { createEmpty, extend } from "ol/extent";
+import { Divider } from "@chakra-ui/icons";
+import { Coordinate } from "ol/coordinate";
+import Overlay from "ol/Overlay";
 import proj4 from "proj4";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -155,58 +173,58 @@ export function MapApp() {
         }
         initializeDefaults();
 
-        map.olMap.getView().setMaxZoom(19);
+            map.olMap.getView().setMaxZoom(19);
 
-        // Route layer for the final path
-        const routeVectorLayer = new VectorLayer({
-            source: new VectorSource(),
-            visible: true,
-            style: styleDefaultBlue(),
-        });
-        routeVectorLayer.set("id", "routeLayer");
-        map.olMap.addLayer(routeVectorLayer);
+            // Route layer for the final path
+            const routeVectorLayer = new VectorLayer({
+                source: new VectorSource(),
+                visible: true,
+                style: styleDefaultBlue(),
+            });
+            routeVectorLayer.set("id", "routeLayer");
+            map.olMap.addLayer(routeVectorLayer);
 
            
 
-        // Address layer
-        const addressVectorSource = new VectorSource({
-            url: "./data/matching_hsnr_features_with_address.geojson",
-            format: new GeoJSON({
-                dataProjection: "EPSG:3857",
-                featureProjection: "EPSG:3857"
-            })
-        });
-
-        const addressLayer = new VectorLayer({
-            source: addressVectorSource,
-            style: new Style({
-                image: new CircleStyle({
-                    radius: 1,
-                    fill: new Fill({
-                        color: "rgba(255, 255, 255, 0.6)"
-                    })
+            // Address layer
+            const addressVectorSource = new VectorSource({
+                url: "./data/matching_hsnr_features_with_address.geojson",
+                format: new GeoJSON({
+                    dataProjection: "EPSG:3857",
+                    featureProjection: "EPSG:3857"
                 })
-            }),
-            visible: false
-        });
-        map.olMap.addLayer(addressLayer);
+            });
 
-        // Street data layer
-        const streetDataSource = new VectorSource({
-            url: "./data/exportedGeojsonRouting (2).geojson",
-            format: new GeoJSON({
-                dataProjection: "EPSG:4326",
-                featureProjection: "EPSG:3857"
-            })
-        });
+            const addressLayer = new VectorLayer({
+                source: addressVectorSource,
+                style: new Style({
+                    image: new CircleStyle({
+                        radius: 1,
+                        fill: new Fill({
+                            color: "rgba(255, 255, 255, 0.6)"
+                        })
+                    })
+                }),
+                visible: false
+            });
+            map.olMap.addLayer(addressLayer);
 
-        const streetDataLayer = new VectorLayer({
-            source: streetDataSource,
-            style: styleByCategory,
-            visible: false
-        });
-        streetDataLayer.set("id", "streetDataLayer");
-        map.olMap.addLayer(streetDataLayer);
+            // Street data layer
+            const streetDataSource = new VectorSource({
+                url: "./data/exportedGeojsonRouting (2).geojson",
+                format: new GeoJSON({
+                    dataProjection: "EPSG:4326",
+                    featureProjection: "EPSG:3857"
+                })
+            });
+
+            const streetDataLayer = new VectorLayer({
+                source: streetDataSource,
+                style: styleByCategory,
+                visible: false
+            });
+            streetDataLayer.set("id", "streetDataLayer");
+            map.olMap.addLayer(streetDataLayer);
         
     }, [map]);
 
@@ -243,7 +261,7 @@ export function MapApp() {
 
                 }
             } catch (error) {
-                console.error("Error fetching route:", error);
+                console.error('Error fetching route:', error);
             }
         };
     
@@ -309,29 +327,29 @@ export function MapApp() {
         const transformedEndCoordinate = proj4("EPSG:3857", "EPSG:4326", endCoordinates);
         console.log("🚴‍♂️ Startpunkt:", transformedStartCoordinate);
 
-        const isSafe = sliderValue === 0;
+    const isSafe = sliderValue === 0;
         // JSON-Objekt für die Route
         const requestData = {
             locations: [
                 { lat: transformedStartCoordinate[1], lon: transformedStartCoordinate[0] },
                 { lat: transformedEndCoordinate[1], lon: transformedEndCoordinate[0] }
             ],
-            costing: "bicycle",
+            costing: 'bicycle',
             costing_options: { bicycle: { 
                 use_roads: isSafe?0.1:0.9,
                 use_lit: isSafe?0.9:0.1,
-                maneuver_penalty: isSafe?50:1,
+            maneuver_penalty: isSafe?50:1,
                 service_factor: isSafe?30:5,
                 use_living_streets: isSafe?1:0.6,
                 avoid_bad_surfaces: isSafe?1.0:0.0,
-                service_penalty: 1,
-                bicycle_type: isSafe?"City":"Road",
-                cycling_speed: 20
+                 service_penalty: 1,
+                 bicycle_type: isSafe?"City":"Road",
+                 cycling_speed: 20
 
-            } },
-            directions_options: { units: "kilometers" },
-            shape_format: "geojson",
-            format: "osrm",
+                } },
+            directions_options: { units: 'kilometers' },
+            shape_format: 'geojson',
+            format: 'osrm',
         };
     
         // JSON-Objekt als URL-Parameter kodieren
@@ -351,7 +369,7 @@ export function MapApp() {
                 type: "Feature",
                 properties: {},//ggf. weitere properties ergänzen
                 geometry: processeddata.geometry
-            };
+            }
             const features = new GeoJSON().readFeature(geojsonFeature, {
                 dataProjection: "EPSG:4326",
                 featureProjection: "EPSG:3857"
@@ -363,7 +381,7 @@ export function MapApp() {
             source.addFeature(features);            
     
         } catch (error) {
-            console.error("Error fetching route:", error);
+            console.error('Error fetching route:', error);
         } finally {
             setIsLoading(false);
         }
@@ -388,7 +406,17 @@ export function MapApp() {
                     extend(extent, feature.getGeometry().getExtent());
                 });
                 // padding is top, right, bottom and left
-                map.olMap.getView().fit(extent, { padding: [300, 300, 300, 300], duration: 1000 });
+                let paddingofscreen;
+                let paddingofscreenmobile
+                if (isMobilePortrait === true) {
+                    paddingofscreen = 35;
+                    paddingofscreenmobile = 250;
+                } else {
+                    paddingofscreen = 300;
+                    paddingofscreenmobile = 0;
+
+                }
+                map.olMap.getView().fit(extent, { padding: [paddingofscreen+paddingofscreenmobile, paddingofscreen, paddingofscreen+paddingofscreenmobile, paddingofscreen], duration: 1000 });
             }
         }
     }
@@ -396,121 +424,6 @@ export function MapApp() {
     // --------------------------------------
     //  Utility Functions
     // --------------------------------------
-
-    /**
-     * Calculates the distance in meters between two coordinate-string IDs.
-     * @param {string} startIdStr - "lon,lat" string of the start node.
-     * @param {string} endIdStr - "lon,lat" string of the end node.
-     * @returns {number} Distance in meters.
-     */
-    function calculateDistance(startIdStr, endIdStr) {
-        const [startLon, startLat] = transform(
-            [parseFloat(startIdStr.split(",")[0]), parseFloat(startIdStr.split(",")[1])],
-            "EPSG:3857",
-            "EPSG:4326"
-        );
-        const [endLon, endLat] = transform(
-            [parseFloat(endIdStr.split(",")[0]), parseFloat(endIdStr.split(",")[1])],
-            "EPSG:3857",
-            "EPSG:4326"
-        );
-
-        const R = 6371e3; // Earth's radius in meters
-        const φ1 = (startLat * Math.PI) / 180;
-        const φ2 = (endLat * Math.PI) / 180;
-        const Δφ = ((endLat - startLat) * Math.PI) / 180;
-        const Δλ = ((endLon - startLon) * Math.PI) / 180;
-
-        const a =
-            Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-            Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-    }
-
-    /**
-     * Estimates travel time on a bike at ~15 km/h.
-     * @param {number} distanceInMeters - Distance of the route.
-     * @returns {number} Estimated travel time in minutes.
-     */
-    function calculateEstimatedTime(distanceInMeters) {
-        const distanceInKm = distanceInMeters / 1000;
-        const averageSpeedKmH = 15;
-        const timeInHours = distanceInKm / averageSpeedKmH;
-        return Math.round(timeInHours * 60);
-    }
-
-    /**
-     * Computes a safety score (in the range [1.0 - 6.0]) based on the cost vector and user preference.
-     * @param {number[]} costVector - The final cost vector for the route.
-     * @returns {number} A floating-point safety score.
-     */
-    function calculateSafetyScore(costVector) {
-        const weightVector = getWeightVector(0);
-        let safetyScore = 0.0;
-        let calculatedDistance;
-
-        switch (sliderValue) {
-            case 0: // safest
-            case 1: // balanced
-            case 2: // fastest
-                calculatedDistance = calcBackWeights(costVector, weightVector, sliderValue);
-                safetyScore = calculatedDistance / costVector[4];
-                break;
-            default:
-                break;
-        }
-
-        // Normalize to [1.0 - 6.0]
-        safetyScore = 1.0 + ((safetyScore - 1.0) / (7.5 - 1.0)) * (6.0 - 1.0);
-        return safetyScore;
-    }
-
-    /**
-     * Converts the forward cost vector back to real distances in each category.
-     * Multiplies them by the relevant weight factors.
-     *
-     * @param {number[]} costVector - The final cost vector from the Pareto search.
-     * @param {number[]} weights - Weight vector from getWeightVector().
-     * @param {number} sliderVal - The current slider position.
-     * @returns {number} The total “re-summed” distance used for safety calculation.
-     */
-    function calcBackWeights(costVector, weights, sliderVal) {
-        const weightVector = getWeightVector(sliderVal);
-
-        const cat1 = costVector[3];
-        const cat2 = costVector[2] - cat1 * weightVector[2];
-        const cat3 =
-            costVector[1] - cat2 * weightVector[1] - cat1 * weightVector[2] * weightVector[1];
-        const cat4 =
-            costVector[0] -
-            cat3 * weightVector[0] -
-            cat2 * weightVector[1] * weightVector[0] -
-            cat1 * weightVector[2] * weightVector[1] * weightVector[0];
-
-        return (
-            cat1 * weights[0] * weights[1] * weights[2] +
-            cat2 * weights[1] * weights[2] +
-            cat3 * weights[2] +
-            cat4
-        );
-    }
-
-    /**
-     * Chooses a background color for the safety rating input field.
-     * @param {number} safetyScore - Computed safety score.
-     * @returns {string} CSS color value.
-     */
-    function getSafetyRatingColor(safetyScore) {
-        if (safetyScore >= 1.0 && safetyScore < 2.5) {
-            return "lightgreen";
-        } else if (safetyScore >= 2.5 && safetyScore < 4.0) {
-            return "#f3db57";
-        } else if (safetyScore >= 4.0) {
-            return "#f66f57";
-        }
-        return "white";
-    }
 
     /**
      * Default style for the route if safety category is not displayed.
@@ -663,7 +576,8 @@ export function MapApp() {
                     aria-label={intl.formatMessage({ id: "ariaLabel.map" })}
                 >
                     {/* Zoom & Measurement Tools */}
-                    <MapAnchor position="bottom-right" horizontalGap={10} verticalGap={70}> 
+                    
+                    <MapAnchor position="bottom-right" horizontalGap={10} verticalGap={35}> 
                         <Flex direction="column" gap={2}>
                             <InitialExtent mapId={MAP_ID} />
                             <ZoomIn mapId={MAP_ID}  />
@@ -763,8 +677,8 @@ export function MapApp() {
                             </Box>
                   
                             <Flex direction="column" gap={3} justify="space-between" align="center">
-                                {timeEfficiencyRating || "Time/Distance"}
-                                <Button  colorScheme="red" onClick={() => { resetInputs(); setShowPopup(false); }}>Reset</Button>                                       
+                            {timeEfficiencyRating || "Time/Distance"}
+                            <Button  colorScheme="red" onClick={() => { resetInputs(); setShowPopup(false); }}>Reset</Button>                                       
                                 
                             </Flex>
                         </motion.div>
@@ -791,11 +705,11 @@ export function MapApp() {
                             height="120px"
                         >
                             <Flex direction="column" gap={3} justify="space-between" align="center">
-                                {timeEfficiencyRating || "Time/Distance"}
+                            {timeEfficiencyRating || "Time/Distance"}
                             
-                                <Button  colorScheme="red" onClick={() => { resetInputs(); setShowPopup(false); }}>
+                                    <Button  colorScheme="red" onClick={() => { resetInputs(); setShowPopup(false); }}>
                         Reset
-                                </Button>                                       
+                                    </Button>                                       
                                 
                             </Flex>
                         </Box>
