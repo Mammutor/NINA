@@ -24,7 +24,7 @@ import { SectionHeading, TitledSection } from "@open-pioneer/react-utils";
 import { ToolButton } from "@open-pioneer/map-ui-components";
 import { ScaleViewer } from "@open-pioneer/scale-viewer";
 import { MAP_ID } from "./services";
-import React, { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Measurement } from "@open-pioneer/measurement";
 import { PiRulerLight } from "react-icons/pi";
 import VectorSource from "ol/source/Vector";
@@ -41,7 +41,7 @@ import LineString from "ol/geom/LineString.js";
 import Select from "react-select";
 import { Point } from "ol/geom";
 import { createEmpty, extend } from "ol/extent";
-import {Divider} from "@chakra-ui/icons";
+import { Divider } from "@chakra-ui/icons";
 
 /**
  * Main component for the map application. It manages state for:
@@ -62,9 +62,9 @@ export function MapApp() {
     const [startCoordinates, setStartCoordinates] = useState([]);
     const [destinationAddress, setDestinationAddress] = useState("");
     const [endId, setEndId] = useState("");
-    const [endCoordinates, setEndCoordinates] = useState([]);
+    const [endCoordinates, setEndCoordinates] = useState<number[]>([]);
     const [addressSuggestions, setAddressSuggestions] = useState([]);
-    const [coordinatesMap, setCoordinatesMap] = useState({});
+    const [coordinatesMap, setCoordinatesMap] = useState<Record<string, string>>({});
     const [filteredDestinations, setFilteredDestinations] = useState([]);
     const [addressToAreaMapping, setAddressToAreaMapping] = useState({});
     const [sliderValue, setSliderValue] = useState(1);
@@ -96,13 +96,13 @@ export function MapApp() {
         setEndCoordinates([]);
         setSliderValue(0);
 
-        if(startId !== "" && endId !== ""){
+        if (startId !== "" && endId !== "") {
             if (isSwitchEnabled) {
                 setIsSwitchChecked(false);
             }
             setIsSwitchEnabled((prev) => !prev);
         }
-        
+
         setSafetyRating("");
         setTimeEfficiencyRating("");
 
@@ -155,98 +155,169 @@ export function MapApp() {
      *  - streetDataLayer
      */
     useEffect(() => {
+        if (!map) return;
         // Set the default slider to 0 (which is 'Safest').
         function initializeDefaults() {
             setSliderValue(0);
         }
         initializeDefaults();
 
-        if (map?.layers) {
-            map.olMap.getView().setMaxZoom(19);
+        map.olMap.getView().setMaxZoom(19);
 
-            // Route layer for the final path
-            const routeVectorLayer = new VectorLayer({
-                source: new VectorSource(),
-                style: (feature) =>
-                    isSwitchChecked ? styleByCategory(feature) : styleDefaultBlue(feature),
+        // Route layer for the final path
+        const routeVectorLayer = new VectorLayer({
+            source: new VectorSource(),
+            style: (feature) =>
+                isSwitchChecked ? styleByCategory(feature) : styleDefaultBlue(feature)
+        });
+        routeVectorLayer.set("id", "routeLayer");
+        map.olMap.addLayer(routeVectorLayer);
+
+        // Add planned Areas Layer
+        const layers = map.olMap.getLayers().getArray();
+        let plannedAreasLayer = layers.find((layer) => layer.get("id") === "plannedAreasLayer");
+
+        if (!plannedAreasLayer) {
+            const plannedAreasVectorSource = new VectorSource({
+                url: "./data/plannedAreas.geojson",
+                format: new GeoJSON({
+                    dataProjection: "EPSG:3857",
+                    featureProjection: "EPSG:3857"
+                })
             });
-            routeVectorLayer.set("id", "routeLayer");
-            map.olMap.addLayer(routeVectorLayer);
 
-            // Add planned Areas Layer
-            const layers = map.olMap.getLayers().getArray();
-            let plannedAreasLayer = layers.find(layer => layer.get('id') === "plannedAreasLayer");
+            plannedAreasLayer = new VectorLayer({
+                source: plannedAreasVectorSource,
+                visible: true
+            });
 
-            if (!plannedAreasLayer) {
-                const plannedAreasVectorSource = new VectorSource({
-                    url: './data/plannedAreas.geojson',
-                    format: new GeoJSON({
-                        dataProjection: 'EPSG:3857',
-                        featureProjection: 'EPSG:3857'
-                    }),
-                });
+            plannedAreasLayer.set("id", "plannedAreasLayer");
+            map.olMap.addLayer(plannedAreasLayer);
+        }
 
-                plannedAreasLayer = new VectorLayer({
-                    source: plannedAreasVectorSource,
-                    visible: true,
-                });
-
-                plannedAreasLayer.set('id', 'plannedAreasLayer');
-                map.olMap.addLayer(plannedAreasLayer);
-            }
-
-            // Always apply the correct style
-            plannedAreasLayer.setStyle(new Style({
+        // Always apply the correct style
+        plannedAreasLayer.setStyle(
+            new Style({
                 fill: new Fill({
-                    color: 'rgba(108,121,115,0.2)', // Semi-transparent gray
+                    color: "rgba(108,121,115,0.2)" // Semi-transparent gray
                 }),
                 stroke: new Stroke({
-                    color: '#000000',
-                    width: 1,
-                }),
-            }))
+                    color: "#000000",
+                    width: 1
+                })
+            })
+        );
 
-            // Address layer
-            const addressVectorSource = new VectorSource({
-                url: "./data/matching_hsnr_features_with_address.geojson",
-                format: new GeoJSON({
-                    dataProjection: "EPSG:3857",
-                    featureProjection: "EPSG:3857",
-                }),
-            });
+        // Address layer
+        const addressVectorSource = new VectorSource({
+            url: "./data/matching_hsnr_features_with_address.geojson",
+            format: new GeoJSON({
+                dataProjection: "EPSG:3857",
+                featureProjection: "EPSG:3857"
+            })
+        });
 
-            const addressLayer = new VectorLayer({
-                source: addressVectorSource,
-                style: new Style({
-                    image: new CircleStyle({
-                        radius: 1,
-                        fill: new Fill({
-                            color: "rgba(255, 255, 255, 0.6)",
-                        }),
-                    }),
-                }),
-                visible: false,
-            });
-            map.olMap.addLayer(addressLayer);
+        const addressLayer = new VectorLayer({
+            source: addressVectorSource,
+            style: new Style({
+                image: new CircleStyle({
+                    radius: 1,
+                    fill: new Fill({
+                        color: "rgba(255, 255, 255, 0.6)"
+                    })
+                })
+            }),
+            visible: false
+        });
+        map.olMap.addLayer(addressLayer);
 
-            // Street data layer
-            const streetDataSource = new VectorSource({
-                url: "./data/exportedGeojsonRouting (2).geojson",
-                format: new GeoJSON({
-                    dataProjection: "EPSG:3857",
-                    featureProjection: "EPSG:3857",
-                }),
-            });
+        // Street data layer
+        const streetDataSource = new VectorSource({
+            url: "./data/exportedGeojsonRouting (2).geojson",
+            format: new GeoJSON({
+                dataProjection: "EPSG:3857",
+                featureProjection: "EPSG:3857"
+            })
+        });
 
-            const streetDataLayer = new VectorLayer({
-                source: streetDataSource,
-                style: styleByCategory,
-                visible: false,
-            });
-            streetDataLayer.set("id", "streetDataLayer");
-            map.olMap.addLayer(streetDataLayer);
-        }
+        const streetDataLayer = new VectorLayer({
+            source: streetDataSource,
+            style: styleByCategory,
+            visible: false
+        });
+        streetDataLayer.set("id", "streetDataLayer");
+        map.olMap.addLayer(streetDataLayer);
+        
     }, [map]);
+
+    /**
+     * Click-Event-Listener for the map to set the end address.
+     */
+    useEffect(() => {
+        if (!map || addressSuggestions.length === 0 || Object.keys(coordinatesMap).length === 0) {
+            return;
+        }
+    
+        console.log("✅ Map und Daten verfügbar – Klick-Event wird registriert!");
+    
+        const handleClick = (event) => {
+            console.log("📍 Map clicked at:", event.coordinate);
+    
+            let nearestAddress = null;
+            let minDistance = Infinity;
+    
+            addressSuggestions.forEach((address) => {
+                const coords = coordinatesMap[address]?.split(",").map(Number) || [];
+    
+                if (coords.length < 2) {
+                    console.warn(`❌ Ungültige Koordinaten für Adresse: ${address}`);
+                    return;
+                }
+    
+                const distance = calculateDistance(
+                    `${event.coordinate[0]},${event.coordinate[1]}`,
+                    `${coords[0]},${coords[1]}`
+                );
+    
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestAddress = address;
+                }
+            });
+    
+            if (nearestAddress) {
+                if (startCoordinates.length === 0) {
+                    console.log("🟢 Startpunkt gesetzt:", nearestAddress);
+                    setStartId(nearestNodeMapping[nearestAddress]);
+                    setStartAddress(nearestAddress);
+                    setStartCoordinates(coordinatesMap[nearestAddress].split(",").map(Number));
+                } else {
+                    console.log("🔴 Endpunkt gesetzt:", nearestAddress);
+                    setEndId(nearestNodeMapping[nearestAddress]);
+                    setDestinationAddress(nearestAddress);
+                    setEndCoordinates(coordinatesMap[nearestAddress].split(",").map(Number));
+                }
+            }
+        };
+    
+        map.olMap.on("click", handleClick);
+    
+        return () => {
+            map.olMap.un("click", handleClick);
+        };
+    }, [map, addressSuggestions, coordinatesMap, nearestNodeMapping, startCoordinates]);
+    
+    /**
+     * If both Coordinates are given, the route will be automatically be searched.
+     */
+    useEffect(() => {
+        if (startCoordinates.length > 0 && endCoordinates.length > 0) {
+            console.log("🚀 Beide Punkte gesetzt – Suche startet!");
+            calculateRoute();
+        }
+    }, [startCoordinates, endCoordinates]);
+    
+    
 
     /**
      * Updates the style of the route layer when the switch changes.
@@ -381,8 +452,8 @@ export function MapApp() {
                 paretoFront.set(startId, [
                     {
                         costVector: new Array(5).fill(0),
-                        predecessor: null,
-                    },
+                        predecessor: null
+                    }
                 ]);
 
                 const queue = [];
@@ -401,7 +472,11 @@ export function MapApp() {
                     const edges = calculatedGraph.get(currentNode) || [];
                     edges.forEach((edge) => {
                         const nextNode = edge.node;
-                        const edgeCostVec = getUnweightedCostVector(edge.length, edge.category, weightVector);
+                        const edgeCostVec = getUnweightedCostVector(
+                            edge.length,
+                            edge.category,
+                            weightVector
+                        );
                         const newCostVec = vectorAdd(currentCostVec, edgeCostVec);
 
                         if (!paretoFront.has(nextNode)) {
@@ -430,7 +505,7 @@ export function MapApp() {
                             }
                             currentPareto.push({
                                 costVector: newCostVec,
-                                predecessor: currentNode,
+                                predecessor: currentNode
                             });
                             queue.push({ node: nextNode, costVector: newCostVec });
                         }
@@ -564,7 +639,10 @@ export function MapApp() {
 
                 currentEntry = predecessorPareto.find((e) =>
                     arraysEqual(
-                        vectorAdd(e.costVector, getEdgeCost(currentNode, path[path.length - 1], graph)),
+                        vectorAdd(
+                            e.costVector,
+                            getEdgeCost(currentNode, path[path.length - 1], graph)
+                        ),
                         currentEntry.costVector
                     )
                 );
@@ -572,7 +650,7 @@ export function MapApp() {
 
             results.push({
                 path: path.reverse(),
-                costVector: entry.costVector,
+                costVector: entry.costVector
             });
         });
 
@@ -641,7 +719,7 @@ export function MapApp() {
                 const toCoord = toNode.split(",").map(Number);
                 const lineSegment = new LineString([fromCoord, toCoord]);
                 const segmentFeature = new Feature({
-                    geometry: lineSegment,
+                    geometry: lineSegment
                 });
 
                 segmentFeature.set("category_number", cat);
@@ -667,9 +745,9 @@ export function MapApp() {
                             stroke: new Stroke({
                                 color: "lightblue",
                                 width: 6,
-                                lineDash: [1, 10],
-                            }),
-                        }),
+                                lineDash: [1, 10]
+                            })
+                        })
                     });
                     addressToRouteLayer.set("id", "addressToRouteLayer");
                     map.olMap.addLayer(addressToRouteLayer);
@@ -678,7 +756,7 @@ export function MapApp() {
                 addressToRouteSource.clear();
                 addressToRouteSource.addFeatures([
                     new Feature({ geometry: startLineString }),
-                    new Feature({ geometry: endLineString }),
+                    new Feature({ geometry: endLineString })
                 ]);
             }
 
@@ -687,7 +765,9 @@ export function MapApp() {
             setTimeEfficiencyRating(
                 `${(paths[0].costVector[4] / 1000).toFixed(2)} km (~${estimatedTime} min)`
             );
-            setSafetyRating(`Safety Rating: ${calculateSafetyScore(paths[0].costVector).toFixed(1)}`);
+            setSafetyRating(
+                `Safety Rating: ${calculateSafetyScore(paths[0].costVector).toFixed(1)}`
+            );
         });
     }
 
@@ -800,7 +880,8 @@ export function MapApp() {
 
         const cat1 = costVector[3];
         const cat2 = costVector[2] - cat1 * weightVector[2];
-        const cat3 = costVector[1] - cat2 * weightVector[1] - cat1 * weightVector[2] * weightVector[1];
+        const cat3 =
+            costVector[1] - cat2 * weightVector[1] - cat1 * weightVector[2] * weightVector[1];
         const cat4 =
             costVector[0] -
             cat3 * weightVector[0] -
@@ -839,8 +920,8 @@ export function MapApp() {
         return new Style({
             stroke: new Stroke({
                 color: "rgba(0, 0, 255, 0.8)",
-                width: 5,
-            }),
+                width: 5
+            })
         });
     }
 
@@ -877,8 +958,8 @@ export function MapApp() {
         return new Style({
             stroke: new Stroke({
                 color,
-                width: 5,
-            }),
+                width: 5
+            })
         });
     }
 
@@ -894,7 +975,7 @@ export function MapApp() {
         if (!markerLayer) {
             markerLayer = new VectorLayer({
                 source: new VectorSource(),
-                style: null,
+                style: null
             });
             markerLayer.set("id", "markerLayer");
             map.olMap.addLayer(markerLayer);
@@ -919,15 +1000,15 @@ export function MapApp() {
                 new Style({
                     image: new CircleStyle({
                         radius: 6,
-                        fill: new Fill({ color: "black" }),
+                        fill: new Fill({ color: "black" })
                     }),
                     text: new OLText({
                         text: "Start",
                         font: "12px Calibri,sans-serif",
                         fill: new Fill({ color: "black" }),
                         stroke: new Stroke({ color: "white", width: 3 }),
-                        offsetY: -15,
-                    }),
+                        offsetY: -15
+                    })
                 })
             );
         }
@@ -949,15 +1030,15 @@ export function MapApp() {
                 new Style({
                     image: new CircleStyle({
                         radius: 6,
-                        fill: new Fill({ color: "black" }),
+                        fill: new Fill({ color: "black" })
                     }),
                     text: new OLText({
                         text: "End",
                         font: "12px Calibri,sans-serif",
                         fill: new Fill({ color: "black" }),
                         stroke: new Stroke({ color: "white", width: 3 }),
-                        offsetY: -15,
-                    }),
+                        offsetY: -15
+                    })
                 })
             );
         }
@@ -993,7 +1074,7 @@ export function MapApp() {
                         value={startId ? { value: startId, label: startAddress } : null}
                         options={addressSuggestions.map((address) => ({
                             value: nearestNodeMapping[address],
-                            label: address,
+                            label: address
                         }))}
                         onChange={(selectedOption) => {
                             setStartId(selectedOption ? selectedOption.value : "");
@@ -1012,8 +1093,8 @@ export function MapApp() {
                         styles={{
                             container: (provided) => ({
                                 ...provided,
-                                marginBottom: "16px",
-                            }),
+                                marginBottom: "16px"
+                            })
                         }}
                     />
 
@@ -1021,7 +1102,7 @@ export function MapApp() {
                         value={endId ? { value: endId, label: destinationAddress } : null}
                         options={filteredDestinations.map((address) => ({
                             value: nearestNodeMapping[address],
-                            label: address,
+                            label: address
                         }))}
                         onChange={(selectedOption) => {
                             setEndId(selectedOption ? selectedOption.value : "");
@@ -1041,8 +1122,8 @@ export function MapApp() {
                         styles={{
                             container: (provided) => ({
                                 ...provided,
-                                marginBottom: "16px",
-                            }),
+                                marginBottom: "16px"
+                            })
                         }}
                     />
                 </Box>
@@ -1103,8 +1184,12 @@ export function MapApp() {
                                 transform="translate(-50%, -50%)"
                                 zIndex="1"
                             >
-                                <Spinner size="xl" color="blue.500" width="100px" // Zusätzliche Kontrolle der Breite
-                                         height="100px"/>
+                                <Spinner
+                                    size="xl"
+                                    color="blue.500"
+                                    width="100px" // Zusätzliche Kontrolle der Breite
+                                    height="100px"
+                                />
                             </Box>
                         )}
                         <Button
@@ -1123,8 +1208,6 @@ export function MapApp() {
                     </Box>
                 </Flex>
 
-
-
                 {/* Route Rating */}
                 <Box maxWidth="400px">
                     <Text fontSize="lg" fontWeight="bold" mb={2} textAlign="center">
@@ -1140,7 +1223,7 @@ export function MapApp() {
                         style={{
                             backgroundColor: getSafetyRatingColor(
                                 parseFloat(safetyRating.split(" ")[2])
-                            ),
+                            )
                         }}
                     />
                     <Input
@@ -1208,7 +1291,11 @@ export function MapApp() {
                                 <Box role="dialog" aria-labelledby={measurementTitleId}>
                                     <TitledSection
                                         title={
-                                            <SectionHeading id={measurementTitleId} size="md" mb={2}>
+                                            <SectionHeading
+                                                id={measurementTitleId}
+                                                size="md"
+                                                mb={2}
+                                            >
                                                 {intl.formatMessage({ id: "measurementTitle" })}
                                             </SectionHeading>
                                         }
@@ -1370,7 +1457,6 @@ export function MapApp() {
         </Flex>
     );
 }
-
 
 /*
             Dieser Code wird benötigt um category hinzuzufügen. wird in der fertigen applikation aber nicht benötigt.
