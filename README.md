@@ -102,7 +102,7 @@ Copyright 2024 by the following contributors:
 - [LHesse-UM](https://github.com/LHesse-UM)
 - [tlehman1](https://github.com/tlehman1)
 - [Mammutor](https://github.com/Mammutor)
-- [Justin K.](https://github.com/.)
+- [Justin K.](https://github.com/jkrumboe)
 
 You may read the full license in the [LICENSE](LICENSE) file included in this repository or visit the official [Apache 2.0 License](http://www.apache.org/licenses/LICENSE-2.0).
 
@@ -111,6 +111,6 @@ You may read the full license in the [LICENSE](LICENSE) file included in this re
 If you have any questions, feedback, or suggestions, please feel free to reach out to us:
 
 - **Mammutor**: [GitHub Profile](https://github.com/Mammutor)
-- **Justin K.**: [GitHub Profile](https://github.com/.)
+- **Justin K.**: [GitHub Profile](https://github.com/jkrumboe)
 
 We appreciate your interest in **NINA** and look forward to your feedback!
